@@ -81,6 +81,20 @@ func TableName(result interface{}) string {
 	return camelToSnake(table_name)
 }
 
+// arguments for Find
+type FindArgs struct {
+	projection []string
+}
+
+func stringInSlice(a string, list []string) bool {
+    for _, b := range list {
+        if b == a {
+            return true
+        }
+    }
+    return false
+}
+
 // Find queries a database for all rows in a given table,
 // and stores all matching rows in the slice provided as an argument.
 
@@ -94,32 +108,58 @@ func TableName(result interface{}) string {
 //    type UserComment struct = { ... }
 //    result := []UserComment{}
 //    db.Find(&result)
-func (db *DB) Find(result interface{}) {
+
+// NOTE: result is an array of structs (of the same type)
+func (db *DB) Find(result interface{}, args FindArgs) {
+	// args.projection is [] if client does not define it
+
+	// construct query
 	tablename := TableName(result)
 	query := fmt.Sprintf("SELECT * FROM %v", tablename)
+
+	// execute query
 	rows, _ := db.inner.Query(query)
 
 	defer rows.Close()
 
+	// get struct type (e.g. dorm.User)
 	elem := reflect.TypeOf(result).Elem().Elem()
+	// create a new struct of the same type
 	res := reflect.New(elem)
 
+	// stores column names
 	cols := ColumnNames(res.Interface())
-	fields := make([]interface{}, len(cols))
+	// stores list of column types
+	fields := make([]interface{}, len(cols)) // array of interfaces
 
+	// fields array stores a pointer to the "type" of each column
 	val := res.Elem()
 	for i := 0; i < val.NumField(); i++ {
 		field := reflect.New(val.Field(i).Type()).Interface()
 		fields[i] = field
 	}
 
+	// convert each projection column to snake case
+	snake_projection := make([]string, len(args.projection))
+	for i:= 0; i < len(args.projection); i++ {
+		snake_projection[i] = camelToSnake(args.projection[i])
+	}
+
+	// modify original result 
 	arr := reflect.ValueOf(result).Elem()
 	for rows.Next() {
 		new_struct := reflect.New(elem).Elem()
+		// stores each row's values into the fields array (temporarily)
 		rows.Scan(fields...)
 		for i := 0; i < len(fields); i++ {
+			// do not set field based on projection
+			if (len(snake_projection) != 0 && !stringInSlice(cols[i], snake_projection)) {
+				continue;
+			}
+			// sets each field value in the struct
 			new_struct.Field(i).Set(reflect.ValueOf(fields[i]).Elem())
 		}
+		// append new struct to array
 		arr.Set(reflect.Append(arr, new_struct))
 	}
 }
