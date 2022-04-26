@@ -28,18 +28,6 @@ func (db *DB) Close() error {
 	return db.inner.Close()
 }
 
-// converts camel case to underscore (snake) case
-// source: https://stackoverflow.com/a/56616250
-func camelToSnake(camel string) string {
-	matchFirstCap := regexp.MustCompile("(.)([A-Z][a-z]+)")
-	matchAllCap := regexp.MustCompile("([a-z0-9])([A-Z])")
-
-	snake := matchFirstCap.ReplaceAllString(camel, "${1}_${2}")
-	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
-
-	return strings.ToLower(snake)
-}
-
 // ColumnNames analyzes a struct, v, and returns a list of strings,
 // one for each of the public fields of v.
 // The i'th string returned should be equal to the name of the i'th
@@ -81,23 +69,16 @@ func TableName(result interface{}) string {
 	return camelToSnake(table_name)
 } 
 
+type Filter map[string]map[string]interface{}
+
 // arguments for Find
 type FindArgs struct {
 	projection []interface{}
-	andFilter []interface{}
-	// 	andFilter: [
-	// 		{Age: {"lt": 0}}
-	// 		{FullName: {"eq": "Shannon"}},
-	// 	]
-}
-
-func stringInSlice(a string, list []interface{}) bool {
-    for _, b := range list {
-        if b == a {
-            return true
-        }
-    }
-    return false
+	andFilter  Filter
+	// 	andFilter: {
+	// 		Age: {"lt": 0, "gt": -5},
+	// 		FullName: {"eq": "Shannon"},
+	// 	}
 }
 
 // Find queries a database for all rows in a given table,
@@ -151,6 +132,37 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 
 	tablename := TableName(result)
 	query := fmt.Sprintf("SELECT %v FROM %v", projected_columns, tablename)
+
+	if len(args.andFilter) > 0 {
+		// an array of "field_name operator value"
+		filters := make([]string, 0)
+		for field_name := range args.andFilter {
+			// what to do if field name is invalid?
+			fields_filters := args.andFilter[field_name]
+			for field_operator := range fields_filters {
+				operator := ""
+				switch field_operator {
+				case "lt":
+					operator = "<"
+				case "gt":
+					operator = ">"
+				case "eq":
+					operator = "="
+				case "neq":
+					operator = "!="
+				case "leq":
+					operator = "<="
+				case "geq":
+					operator = ">="
+				default:
+					log.Panic("Invalid filter operator provided!")
+				}
+				condition_str := fmt.Sprintf("%v %v %v", field_name, operator, fields_filters[field_operator])
+				filters = append(filters, condition_str)
+			}
+		}
+		query += " WHERE " + strings.Join(filters, " AND ")
+	}
 
 	// convert each column name to camel case
 	snake_projection := make([]interface{}, len(ordered_projection))
@@ -330,4 +342,27 @@ func (db *DB) Create(model interface{}) {
 	}
 	the_struct.Set(new_struct)
 
+}
+
+// converts camel case to underscore (snake) case
+// source: https://stackoverflow.com/a/56616250
+func camelToSnake(camel string) string {
+	matchFirstCap := regexp.MustCompile("(.)([A-Z][a-z]+)")
+	matchAllCap := regexp.MustCompile("([a-z0-9])([A-Z])")
+
+	snake := matchFirstCap.ReplaceAllString(camel, "${1}_${2}")
+	snake = matchAllCap.ReplaceAllString(snake, "${1}_${2}")
+
+	return strings.ToLower(snake)
+}
+
+// checks if string a is in slice list
+// source: https://stackoverflow.com/questions/10485743/contains-method-for-a-slice
+func stringInSlice(a string, list []interface{}) bool {
+    for _, b := range list {
+        if b == a {
+            return true
+        }
+    }
+    return false
 }
