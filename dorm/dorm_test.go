@@ -41,12 +41,6 @@ func insertUsers(conn *sql.DB, users []User) {
 	}
 }
 
-type User struct {
-	FullName string
-	Age int
-	ClassYear string
-}
-
 // var MockUsers = []User{
 // 	{FullName: "Test User2"},
 // 	{FullName: "Test User1"},
@@ -173,7 +167,17 @@ type Post struct {
 	Body   string
 }
 
+type User struct {
+	FullName string
+	Age int
+	ClassYear string
+}
+
 func helperTestEquality(t *testing.T, results []User, expected []User) {
+	fmt.Println(results)
+	if (len(results) != len(expected)) {
+		t.Errorf("Expected %v rows but instead found %v rows",  len(expected), len(results))
+	}
 	for i, result := range(results) {
 		if (result.FullName != expected[i].FullName) {
 			t.Errorf("Expected %v but instead found %v",  expected[i].FullName, result.FullName)
@@ -203,18 +207,29 @@ func TestProjection(t *testing.T) {
 	fmt.Println("Test: Only FullName")
 	results := []User{}
 	args := FindArgs{
-		projection: []string{"FullName"},
+		projection: []interface{}{"FullName"},
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
 		{FullName: "Nick"},
 		{FullName: "Shannon"},
 	})
+
+	fmt.Println("Test: Only Age and ClassYear")
+	results = []User{}
+	args = FindArgs{
+		projection: []interface{}{"Age", "ClassYear"},
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		{ClassYear: "Freshman", Age: 10},
+		{ClassYear: "Senior", Age: 20},
+	})
 	
 	fmt.Println("Test: Only ClassYear and Age")
 	results = []User{}
 	args = FindArgs{
-		projection: []string{"ClassYear", "Age"},
+		projection: []interface{}{"ClassYear", "Age"},
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -225,7 +240,7 @@ func TestProjection(t *testing.T) {
 	fmt.Println("Test: Only FullName and Age")
 	results = []User{}
 	args = FindArgs{
-		projection: []string{"FullName", "Age"},
+		projection: []interface{}{"FullName", "Age"},
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -236,7 +251,7 @@ func TestProjection(t *testing.T) {
 	fmt.Println("Test: All Results - Empty Projection Array")
 	results = []User{}
 	args = FindArgs{
-		projection: []string{},
+		projection: []interface{}{},
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -253,7 +268,18 @@ func TestProjection(t *testing.T) {
 		user_shannon,
 	})
 
-	fmt.Println(">>> passed! <<<")
+	defer func() {
+        if r := recover(); r == nil {
+            t.Errorf("Expected panic but none generated")
+        }
+    }()
+
+	fmt.Println("Test: Non-existent Field")
+	results = []User{}
+	args = FindArgs{
+		projection: []interface{}{"FullName", "FakeField"},
+	}
+	db.Find(&results, args)
 }
 
 // func TestCustom(t *testing.T) {

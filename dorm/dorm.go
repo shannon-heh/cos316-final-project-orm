@@ -52,9 +52,9 @@ func camelToSnake(camel string) string {
 //    UserName string
 // }
 // ColumnNames(&MyStruct{})    ==>   []string{"id", "user_name"}
-func ColumnNames(v interface{}) []string {
+func ColumnNames(v interface{}) []interface{} {
 	val := reflect.ValueOf(v).Elem()
-	cols := []string{}
+	cols := []interface{}{}
 	for i := 0; i < val.NumField(); i++ {
 		colname := val.Type().Field(i).Name
 		if unicode.IsLower([]rune(colname)[0]) {
@@ -79,14 +79,19 @@ func TableName(result interface{}) string {
 	table_name := reflect.TypeOf(result).String()
 	table_name = strings.Split(table_name, ".")[1]
 	return camelToSnake(table_name)
-}
+} 
 
 // arguments for Find
 type FindArgs struct {
-	projection []string
+	projection []interface{}
+	andFilter []interface{}
+	// 	andFilter: [
+	// 		{Age: {"lt": 0}}
+	// 		{FullName: {"eq": "Shannon"}},
+	// 	]
 }
 
-func stringInSlice(a string, list []string) bool {
+func stringInSlice(a string, list []interface{}) bool {
     for _, b := range list {
         if b == a {
             return true
@@ -111,53 +116,93 @@ func stringInSlice(a string, list []string) bool {
 
 // NOTE: result is an array of structs (of the same type)
 func (db *DB) Find(result interface{}, args FindArgs) {
-	// args.projection is [] if client does not define it
+	// get struct type (e.g. dorm.User)
+	elem := reflect.TypeOf(result).Elem().Elem()
 
-	// construct query
+	// create a new struct of the same type
+	res := reflect.New(elem)
+	val := res.Elem()
+	j := 0
+
+	// fix order of args.projection to match order of fields in struct
+	ordered_projection := make([]interface{}, len(args.projection))
+	if len(args.projection) > 0 {
+		for i := 0; i < val.NumField(); i++ {
+			if (!stringInSlice(val.Type().Field(i).Name, args.projection)) {
+				continue
+			}
+			ordered_projection[j] = val.Type().Field(i).Name
+			j++
+		}
+	}
+	if (j != len(ordered_projection)) {
+		log.Panic("Invalid projection column provided!")
+	}
+
+	// insert placeholders for projected columns
+	projected_columns := "*"
+	if len(ordered_projection) > 0 {
+		projected_placeholders := make([]string, len(ordered_projection))
+		for i := range ordered_projection {
+			projected_placeholders[i] = "%v"
+		}
+		projected_columns = strings.Join(projected_placeholders, ", ")
+	}
+
 	tablename := TableName(result)
-	query := fmt.Sprintf("SELECT * FROM %v", tablename)
+	query := fmt.Sprintf("SELECT %v FROM %v", projected_columns, tablename)
 
+	// convert each column name to camel case
+	snake_projection := make([]interface{}, len(ordered_projection))
+	for i:= 0; i < len(ordered_projection); i++ {
+		snake_projection[i] = camelToSnake(ordered_projection[i].(string))
+	}
+
+	// construct query with projected columns
+	query = fmt.Sprintf(query, snake_projection...)
+	
 	// execute query
 	rows, _ := db.inner.Query(query)
 
 	defer rows.Close()
 
-	// get struct type (e.g. dorm.User)
-	elem := reflect.TypeOf(result).Elem().Elem()
-	// create a new struct of the same type
-	res := reflect.New(elem)
-
-	// stores column names
+	// store column names
 	cols := ColumnNames(res.Interface())
+	// replace column names with projection if necessary
+	if (len(ordered_projection) > 0) {
+		cols = snake_projection
+	}
+
 	// stores list of column types
 	fields := make([]interface{}, len(cols)) // array of interfaces
 
 	// fields array stores a pointer to the "type" of each column
-	val := res.Elem()
+	j = 0
 	for i := 0; i < val.NumField(); i++ {
+		// if we have a projection, but the current field is not in the project, skip
+		if (len(ordered_projection) > 0 && !stringInSlice(val.Type().Field(i).Name, ordered_projection)) {
+			continue
+		}
 		field := reflect.New(val.Field(i).Type()).Interface()
-		fields[i] = field
+		fields[j] = field
+		j++
 	}
 
-	// convert each projection column to snake case
-	snake_projection := make([]string, len(args.projection))
-	for i:= 0; i < len(args.projection); i++ {
-		snake_projection[i] = camelToSnake(args.projection[i])
-	}
-
-	// modify original result 
+	// modify original result
 	arr := reflect.ValueOf(result).Elem()
 	for rows.Next() {
 		new_struct := reflect.New(elem).Elem()
 		// stores each row's values into the fields array (temporarily)
 		rows.Scan(fields...)
-		for i := 0; i < len(fields); i++ {
-			// do not set field based on projection
-			if (len(snake_projection) != 0 && !stringInSlice(cols[i], snake_projection)) {
-				continue;
+		j := 0
+		for i := 0; i < val.NumField(); i++ {
+			// if we have a projection, but the current field is not in the project, skip
+			if (len(ordered_projection) > 0 && !stringInSlice(val.Type().Field(i).Name, ordered_projection)) {
+				continue			
 			}
 			// sets each field value in the struct
-			new_struct.Field(i).Set(reflect.ValueOf(fields[i]).Elem())
+			new_struct.Field(i).Set(reflect.ValueOf(fields[j]).Elem())
+			j++
 		}
 		// append new struct to array
 		arr.Set(reflect.Append(arr, new_struct))
