@@ -21,7 +21,8 @@ func createUserTable(conn *sql.DB) {
 	_, err := conn.Exec(`create table user (
 		full_name text,
 		age int,
-		class_year text
+		class_year text,
+		is_male int
 	)`)
 
 	if err != nil {
@@ -168,13 +169,13 @@ type Post struct {
 }
 
 type User struct {
-	FullName string
-	Age int
+	FullName  string
+	Age 	  int
 	ClassYear string
+	IsMale 	  bool
 }
 
 func helperTestEquality(t *testing.T, results []User, expected []User) {
-	fmt.Println(results)
 	if (len(results) != len(expected)) {
 		t.Errorf("Expected %v rows but instead found %v rows",  len(expected), len(results))
 	}
@@ -191,6 +192,16 @@ func helperTestEquality(t *testing.T, results []User, expected []User) {
 	}
 }
 
+func helperTestPanic(t *testing.T, theFunc func() ) {
+	defer func() {
+        if r := recover(); r == nil {
+            t.Errorf("Expected panic but none generated")
+        }
+    }()
+
+	theFunc()
+}
+
 func TestProjection(t *testing.T) {
 	fmt.Println(">>> PROJECTION TESTS <<<")
 	conn := connectSQL()
@@ -203,6 +214,8 @@ func TestProjection(t *testing.T) {
 	user_shannon := User{FullName: "Shannon", ClassYear: "Senior", Age: 20}
 	db.Create(&user_nick)
 	db.Create(&user_shannon)
+	
+	/* ------------------------------------------------------------ */
 
 	fmt.Println("Test: Only FullName")
 	results := []User{}
@@ -268,18 +281,161 @@ func TestProjection(t *testing.T) {
 		user_shannon,
 	})
 
-	defer func() {
-        if r := recover(); r == nil {
-            t.Errorf("Expected panic but none generated")
-        }
-    }()
+	helperTestPanic(t, func() {
+		fmt.Println("Test: Non-existent Field")
+		results = []User{}
+		args = FindArgs{
+			projection: []interface{}{"FullName", "FakeField"},
+		}
+		db.Find(&results, args)
+	})
+}
 
-	fmt.Println("Test: Non-existent Field")
-	results = []User{}
-	args = FindArgs{
-		projection: []interface{}{"FullName", "FakeField"},
+func TestFilter(t *testing.T) {
+	fmt.Println(">>> FILTER TESTS <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10, IsMale: true}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Senior", Age: 20, IsMale: false}
+
+	db.Create(&user_nick)
+	db.Create(&user_shannon)
+
+	/* ------------------------------------------------------------ */
+
+	fmt.Println("Test: Get FullName = Nick, Only Nick")
+	results := []User{}
+	filter := make(Filter)
+	addFilter(filter, "FullName", "eq", "Nick")
+	args := FindArgs{
+		andFilter: filter,
 	}
 	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+	})
+	
+	fmt.Println("Test: Get Age < 15, Only Nick")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "Age", "lt", 15)
+	args = FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+	})
+
+	fmt.Println("Test: Get Age >= 10, Both")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "Age", "geq", 10)
+	args = FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_shannon,
+	})
+
+	fmt.Println("Test: Get Age < 0, None")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "Age", "lt", 0)
+	args = FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{})
+
+	fmt.Println("Test: Get ClassYear = Senior and FullName = Shannon, Only Shannon")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "ClassYear", "eq", "Senior")
+	addFilter(filter, "FullName", "eq", "Shannon")
+	args = FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{user_shannon})
+
+	fmt.Println("Test: Get Age >= 21 and FullName = Shannon, None")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "FullName", "eq", "Shannon")
+	addFilter(filter, "Age", "geq", 21)
+	args = FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{})
+	
+	fmt.Println("Test: Get IsMale = true, Only Shannon")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "IsMale", "neq", true)
+	args = FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_shannon,
+	})
+
+	fmt.Println("Test: Get IsMale = false, Only Shannon")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "IsMale", "eq", false)
+	args = FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_shannon,
+	})
+
+	fmt.Println("Test: Get IsMale = true and FullName = Nicj, Only Nick")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "IsMale", "eq", true)
+	addFilter(filter, "FullName", "gt", "Nicj")
+	args = FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+	})
+
+	helperTestPanic(t, func() {
+		fmt.Println("Test: Get Name = Nick, None")
+		results = []User{}
+		filter = make(Filter)
+		addFilter(filter, "Name", "eq", "Nick")
+		args = FindArgs{
+			andFilter: filter,
+		}
+		db.Find(&results, args)
+	})
+
+	helperTestPanic(t, func() {
+		fmt.Println("Test: Get Name = Nick and Age = 10, None")
+		results = []User{}
+		filter = make(Filter)
+		addFilter(filter, "Age", "eq", 10)
+		addFilter(filter, "Name", "eq", "Nick")
+		args = FindArgs{
+			andFilter: filter,
+		}
+		db.Find(&results, args)
+	})
+}
 }
 
 // func TestCustom(t *testing.T) {

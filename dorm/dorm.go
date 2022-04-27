@@ -69,16 +69,22 @@ func TableName(result interface{}) string {
 	return camelToSnake(table_name)
 } 
 
-type Filter map[string]map[string]interface{}
+
+type FilterArg map[string]interface{}
+type Filter map[string]FilterArg
+
+func addFilter(filter Filter, field string, operator string, value interface{}) {
+	if _, ok := filter[field]; !ok {
+		// if there does not exist a filter for that field
+		filter[field] = make(FilterArg)
+	}
+	filter[field][operator] = value
+}
 
 // arguments for Find
 type FindArgs struct {
 	projection []interface{}
 	andFilter  Filter
-	// 	andFilter: {
-	// 		Age: {"lt": 0, "gt": -5},
-	// 		FullName: {"eq": "Shannon"},
-	// 	}
 }
 
 // Find queries a database for all rows in a given table,
@@ -137,7 +143,6 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 		// an array of "field_name operator value"
 		filters := make([]string, 0)
 		for field_name := range args.andFilter {
-			// what to do if field name is invalid?
 			fields_filters := args.andFilter[field_name]
 			for field_operator := range fields_filters {
 				operator := ""
@@ -157,7 +162,12 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 				default:
 					log.Panic("Invalid filter operator provided!")
 				}
-				condition_str := fmt.Sprintf("%v %v %v", field_name, operator, fields_filters[field_operator])
+				arg := fields_filters[field_operator]
+				condition_str := fmt.Sprintf("%v%v%v", camelToSnake(field_name), operator, arg)
+				switch arg.(type) {
+				case string:
+					condition_str = fmt.Sprintf("%v%v'%v'", camelToSnake(field_name), operator, arg)
+				}
 				filters = append(filters, condition_str)
 			}
 		}
@@ -177,6 +187,11 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 	rows, _ := db.inner.Query(query)
 
 	defer rows.Close()
+
+	// invalid query results in nil rows
+	if (rows == nil) {
+		log.Panic("Invalid database query provided!")
+	}
 
 	// store column names
 	cols := ColumnNames(res.Interface())
