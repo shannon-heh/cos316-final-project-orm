@@ -28,32 +28,6 @@ func (db *DB) Close() error {
 	return db.inner.Close()
 }
 
-// ColumnNames analyzes a struct, v, and returns a list of strings,
-// one for each of the public fields of v.
-// The i'th string returned should be equal to the name of the i'th
-// public field of v, converted to underscore_case.
-// Refer to the specification of underscore_case, below.
-
-// Example usage:
-// type MyStruct struct {
-//    ID int64
-//    UserName string
-// }
-// ColumnNames(&MyStruct{})    ==>   []string{"id", "user_name"}
-func ColumnNames(v interface{}) []interface{} {
-	val := reflect.ValueOf(v).Elem()
-	cols := []interface{}{}
-	for i := 0; i < val.NumField(); i++ {
-		colname := val.Type().Field(i).Name
-		if unicode.IsLower([]rune(colname)[0]) {
-			continue
-		}
-		colname_fixed := camelToSnake(colname)
-		cols = append(cols, colname_fixed)
-	}
-	return cols
-}
-
 // TableName analyzes a struct, v, and returns a single string, equal
 // to the name of that struct's type, converted to underscore_case.
 // Refer to the specification of underscore_case, below.
@@ -96,21 +70,23 @@ type FindArgs struct {
 	limit	int
 }
 
-// Find queries a database for all rows in a given table,
-// and stores all matching rows in the slice provided as an argument.
+/*
+	Find queries a database for all rows in a given table,
+	and stores all matching rows in the slice provided as an argument.
 
-// The argument `result` will be a pointer to an empty slice of models.
-// To be explicit, it will have type: *[]MyStruct,
-// where MyStruct is any arbitrary struct subject to the restrictions
-// discussed later in this document.
-// You may assume the slice referenced by `result` is empty.
+	The argument `result` will be a pointer to an empty slice of models.
+	To be explicit, it will have type: *[]MyStruct,
+	where MyStruct is any arbitrary struct subject to the restrictions
+	discussed later in this document.
+	You may assume the slice referenced by `result` is empty.
 
-// Example usage to find all UserComment entries in the database:
-//    type UserComment struct = { ... }
-//    result := []UserComment{}
-//    db.Find(&result)
+	Example usage to find all UserComment entries in the database:
+	type UserComment struct = { ... }
+	result := []UserComment{}
+	db.Find(&result)
 
-// NOTE: result is an array of structs (of the same type)
+	NOTE: result is an array of structs (of the same type)
+*/
 func (db *DB) Find(result interface{}, args FindArgs) {
 	// get struct type (e.g. dorm.User)
 	elem := reflect.TypeOf(result).Elem().Elem()
@@ -145,8 +121,17 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 		projected_columns = strings.Join(projected_placeholders, ", ")
 	}
 
-	tablename := TableName(result)
-	query := fmt.Sprintf("SELECT %v FROM %v", projected_columns, tablename)
+	// add PROJECTED columns to query
+	query := fmt.Sprintf("SELECT %v FROM %v", projected_columns, TableName(result))
+
+	// convert each column name to camel case
+	snake_projection := make([]interface{}, len(ordered_projection))
+	for i:= 0; i < len(ordered_projection); i++ {
+		snake_projection[i] = camelToSnake(ordered_projection[i].(string))
+	}
+
+	// construct query with projected columns
+	query = fmt.Sprintf(query, snake_projection...)
 
 	// add AND filters
 	if len(args.andFilter) > 0 {
@@ -194,19 +179,11 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 	}
 
 	// add row LIMIT
+	// ignore LIMIT value if invalid
 	if args.limit > 0 {
 		query += fmt.Sprintf(" LIMIT %d",args.limit);
 	}
 
-	// convert each column name to camel case
-	snake_projection := make([]interface{}, len(ordered_projection))
-	for i:= 0; i < len(ordered_projection); i++ {
-		snake_projection[i] = camelToSnake(ordered_projection[i].(string))
-	}
-
-	// construct query with projected columns
-	query = fmt.Sprintf(query, snake_projection...)
-	
 	// execute query
 	rows, _ := db.inner.Query(query)
 
@@ -218,14 +195,14 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 	}
 
 	// store column names
-	cols := ColumnNames(res.Interface())
+	cols := columnNames(res.Interface())
 	// replace column names with projection if necessary
 	if (len(ordered_projection) > 0) {
 		cols = snake_projection
 	}
 
 	// stores list of column types
-	fields := make([]interface{}, len(cols)) // array of interfaces
+	fields := make([]interface{}, len(cols)) 
 
 	// fields array stores a pointer to the "type" of each column
 	j = 0
@@ -260,64 +237,18 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 	}
 }
 
-// First queries a database for the first row in a table,
-// and stores the matching row in the struct provided as an argument.
-// If no such entry exists, First returns false; else it returns true.
+/*
+	Create adds the specified model to the appropriate database table.
+	The table for the model *must* already exist, and Create() should
+	panic if it does not.
 
-// The argument `result` will be a pointer to a model.
-// To be explicit, it will have type: *MyStruct,
-// where MyStruct is any arbitrary struct subject to the restrictions
-// discussed later in this document.
-
-// Example usage to find the first UserComment entry in the database:
-//    type UserComment struct = { ... }
-//    result := &UserComment{}
-//    ok := db.First(result)
-// with the argument), otherwise return true.
-func (db *DB) First(result interface{}) bool {
-	tablename := TableName(result)
-	query := fmt.Sprintf("SELECT * FROM %v", tablename)
-	rows, _ := db.inner.Query(query)
-
-	defer rows.Close()
-
-	elem := reflect.TypeOf(result).Elem() // struct
-	res := reflect.New(elem)
-
-	cols := ColumnNames(res.Interface())
-	fields := make([]interface{}, len(cols))
-
-	val := res.Elem()
-	for i := 0; i < val.NumField(); i++ {
-		field := reflect.New(val.Field(i).Type()).Interface()
-		fields[i] = field
-	}
-
-	if !rows.Next() {
-		return false
-	}
-	rows.Scan(fields...)
-
-	the_struct := reflect.ValueOf(result).Elem()
-	new_struct := reflect.New(elem).Elem()
-	for i := 0; i < len(fields); i++ {
-		new_struct.Field(i).Set(reflect.ValueOf(fields[i]).Elem())
-	}
-	the_struct.Set(new_struct)
-
-	return true
-}
-
-// Create adds the specified model to the appropriate database table.
-// The table for the model *must* already exist, and Create() should
-// panic if it does not.
-
-// Optionally, at most one of the fields of the provided `model`
-// might be annotated with the tag `dorm:"primary_key"`. If such a
-// field exists, Create() should ignore the provided value of that
-// field, overwriting it with the auto-incrementing row ID.
-// This ID is given by the value of last_inserted_rowid(),
-// returned from the underlying sql database.
+	Optionally, at most one of the fields of the provided `model`
+	might be annotated with the tag `dorm:"primary_key"`. If such a
+	field exists, Create() should ignore the provided value of that
+	field, overwriting it with the auto-incrementing row ID.
+	This ID is given by the value of last_inserted_rowid(),
+	returned from the underlying sql database.
+*/
 func (db *DB) Create(model interface{}) {
 	tablename := TableName(model)
 	query := fmt.Sprintf("SELECT * FROM %v", tablename)
@@ -404,4 +335,30 @@ func stringInSlice(a string, list []interface{}) bool {
         }
     }
     return false
+}
+
+// columnNames analyzes a struct, v, and returns a list of strings,
+// one for each of the public fields of v.
+// The i'th string returned should be equal to the name of the i'th
+// public field of v, converted to underscore_case.
+// Refer to the specification of underscore_case, below.
+
+// Example usage:
+// type MyStruct struct {
+//    ID int64
+//    UserName string
+// }
+// columnNames(&MyStruct{})    ==>   []string{"id", "user_name"}
+func columnNames(v interface{}) []interface{} {
+	val := reflect.ValueOf(v).Elem()
+	cols := []interface{}{}
+	for i := 0; i < val.NumField(); i++ {
+		colname := val.Type().Field(i).Name
+		if unicode.IsLower([]rune(colname)[0]) {
+			continue
+		}
+		colname_fixed := camelToSnake(colname)
+		cols = append(cols, colname_fixed)
+	}
+	return cols
 }
