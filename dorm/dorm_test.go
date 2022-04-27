@@ -600,6 +600,203 @@ func TestLimit(t *testing.T) {
 	})
 }
 
+func TestFindFull(t *testing.T) {
+	fmt.Println(">>> ALL TESTS <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10, IsMale: true}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20, IsMale: false}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20, IsMale: true}
+	user_katie := User{FullName: "Katie", ClassYear: "Sophomore", Age: 30, IsMale: false}
+	user_albert := User{FullName: "Albert", ClassYear: "Senior", Age: 40, IsMale: true}
+
+	db.Create(&user_nick)
+	db.Create(&user_shannon)
+	db.Create(&user_will)
+	db.Create(&user_katie)
+	db.Create(&user_albert)
+
+	/* ------------------------------------------------------------ */
+	
+	// PROJECT + WHERE
+
+	fmt.Println("Test: PROJECT FullName, IsMale, WHERE ClassYear != Freshman, Age > 20")
+	results := []User{}
+	filter := make(Filter)
+	addFilter(filter, "ClassYear", "neq", "Freshman")
+	addFilter(filter, "Age", "gt", 20)
+	args := FindArgs{
+		projection: []interface{}{"FullName", "IsMale"},
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		{FullName: "Katie", IsMale: false},
+		{FullName: "Albert", IsMale: true},
+	})
+
+	// add IN operator
+	fmt.Println("Test: PROJECT Age, ClassYear, WHERE IsMale = true")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "IsMale", "eq", true)
+	args = FindArgs{
+		projection: []interface{}{"Age", "ClassYear"},
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		{Age: 10, ClassYear: "Freshman"},
+		{Age: 20, ClassYear: "Senior"},
+		{Age: 40, ClassYear: "Senior"},
+	})
+
+	/* ------------------------------------------------------------ */
+	
+	// PROJECT + LIMIT
+
+	fmt.Println("Test: PROJECT FullName, LIMIT 2")
+	results = []User{}
+	args = FindArgs{
+		projection: []interface{}{"FullName"},
+		limit: 2,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		{FullName: "Nick"},
+		{FullName: "Shannon"},
+	})
+
+	/* ------------------------------------------------------------ */
+	
+	// PROJECT + ORDER BY
+
+	fmt.Println("Test: PROJECT FullName, Age ORDER BY Age DESC, FullName ASC")
+	results = []User{}
+	orderBy := new(OrderBy)
+	addOrder(orderBy, "Age", "DESC")
+	addOrder(orderBy, "FullName", "ASC")
+	args = FindArgs{
+		projection: []interface{}{"FullName", "Age"},
+		orderBy: *orderBy,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		{FullName: "Albert", Age: 40},
+		{FullName: "Katie", Age: 30},
+		{FullName: "Shannon", Age: 20},
+		{FullName: "Will", Age: 20},
+		{FullName: "Nick", Age: 10},
+	})
+
+	/* ------------------------------------------------------------ */
+	
+	// WHERE + LIMIT
+
+	fmt.Println("Test: WHERE Age != 20, LIMIT 2")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "Age", "neq", 20)
+	args = FindArgs{
+		andFilter: filter,
+		limit: 2,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_katie,
+	})
+
+	/* ------------------------------------------------------------ */
+	
+	// WHERE + ORDER BY
+
+	fmt.Println("Test: WHERE IsMale != false, ORDER BY FullName ASC")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "IsMale", "neq", false)
+	orderBy = new(OrderBy)
+	addOrder(orderBy, "FullName", "ASC")
+	args = FindArgs{
+		andFilter: filter,
+		orderBy: *orderBy,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_albert,
+		user_nick,
+		user_will,
+	})
+
+	/* ------------------------------------------------------------ */
+	
+	// LIMIT + ORDER BY
+
+	fmt.Println("Test: ORDER BY IsMale ASC, Age DESC, LIMIT 4")
+	results = []User{}
+	orderBy = new(OrderBy)
+	addOrder(orderBy, "IsMale", "ASC")
+	addOrder(orderBy, "Age", "DESC")
+	args = FindArgs{
+		orderBy: *orderBy,
+		limit: 4,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_katie,
+		user_shannon,
+		user_albert,
+		user_will,
+	})
+
+	/* ------------------------------------------------------------ */
+	
+	// PROJECT + WHERE + ORDER BY + LIMIT
+
+	fmt.Println("Test: PROJECT ClassYear, Age, WHERE AGE > 18 and AGE <= 30, ORDER BY ClassYear DESC, LIMIT 10")
+	results = []User{}
+	orderBy = new(OrderBy)
+	addOrder(orderBy, "ClassYear", "DESC")
+	filter = make(Filter)
+	addFilter(filter, "Age", "gt", 18)
+	addFilter(filter, "Age", "leq", 30)
+	args = FindArgs{
+		projection: []interface{}{"ClassYear", "Age"},
+		andFilter: filter,
+		orderBy: *orderBy,
+		limit: 10,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		{ClassYear: "Sophomore", Age: 30},
+		{ClassYear: "Senior", Age: 20},
+		{ClassYear: "Freshman", Age: 20},
+	})
+
+	fmt.Println("Test: PROJECT FullName, IsMale, WHERE IsMale = true, ClassYear > Freshman, ORDER BY FullName ASC, LIMIT 2")
+	results = []User{}
+	orderBy = new(OrderBy)
+	addOrder(orderBy, "FullName", "ASC")
+	filter = make(Filter)
+	addFilter(filter, "IsMale", "eq", true)
+	addFilter(filter, "ClassYear", "gt", "Freshman")
+	args = FindArgs{
+		projection: []interface{}{"FullName", "IsMale"},
+		andFilter: filter,
+		orderBy: *orderBy,
+		limit: 2,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		{FullName: "Albert", IsMale: true},
+		{FullName: "Will", IsMale: true},
+	})
+}
+
 // func TestCustom(t *testing.T) {
 // 	// copied from main.go
 // 	conn, err := sql.Open("sqlite3", "file:test.db?mode=memory")
