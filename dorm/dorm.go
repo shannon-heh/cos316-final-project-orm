@@ -93,6 +93,7 @@ type FindArgs struct {
 	projection []interface{}
 	andFilter  Filter
 	orderBy    OrderBy
+	limit	int
 }
 
 // Find queries a database for all rows in a given table,
@@ -190,6 +191,11 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 			orderByFields = append(orderByFields, camelToSnake(orderField[0]) + " " + orderField[1])
 		}
 		query += " ORDER BY " + strings.Join(orderByFields, ", ")
+	}
+
+	// add row LIMIT
+	if args.limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d",args.limit);
 	}
 
 	// convert each column name to camel case

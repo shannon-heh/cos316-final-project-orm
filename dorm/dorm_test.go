@@ -535,6 +535,69 @@ func TestOrderBy(t *testing.T) {
 		db.Find(&results, args)
 	})
 }
+
+func TestLimit(t *testing.T) {
+	fmt.Println(">>> LIMIT TESTS <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20}
+
+	db.Create(&user_nick)
+	db.Create(&user_shannon)
+	db.Create(&user_will)
+	
+	/* ------------------------------------------------------------ */
+
+	fmt.Println("Test: LIMIT 1")
+	results := []User{}
+	args := FindArgs{
+		limit: 1,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+	})
+
+	fmt.Println("Test: LIMIT 2")
+	results = []User{}
+	args = FindArgs{
+		limit: 2,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_shannon,
+	})
+
+	fmt.Println("Test: LIMIT 4")
+	results = []User{}
+	args = FindArgs{
+		limit: 4,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_shannon,
+		user_will,
+	})
+
+	fmt.Println("Test: LIMIT -1")
+	results = []User{}
+	args = FindArgs{
+		limit: -1,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_shannon,
+		user_will,
+	})
 }
 
 // func TestCustom(t *testing.T) {
