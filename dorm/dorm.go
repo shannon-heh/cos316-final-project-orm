@@ -81,10 +81,18 @@ func addFilter(filter Filter, field string, operator string, value interface{}) 
 	filter[field][operator] = value
 }
 
+type OrderBy [][]string
+
+func addOrder(orderBy *OrderBy, field string, order string) {
+	fieldOrder := []string{field, order}
+	*orderBy = append(*orderBy, fieldOrder)
+}
+
 // arguments for Find
 type FindArgs struct {
 	projection []interface{}
 	andFilter  Filter
+	orderBy    OrderBy
 }
 
 // Find queries a database for all rows in a given table,
@@ -139,6 +147,7 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 	tablename := TableName(result)
 	query := fmt.Sprintf("SELECT %v FROM %v", projected_columns, tablename)
 
+	// add AND filters
 	if len(args.andFilter) > 0 {
 		// an array of "field_name operator value"
 		filters := make([]string, 0)
@@ -172,6 +181,15 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 			}
 		}
 		query += " WHERE " + strings.Join(filters, " AND ")
+	}
+
+	// add ORDER BY
+	if len(args.orderBy) > 0 {
+		orderByFields := make([]string, 0)
+		for _, orderField := range args.orderBy {
+			orderByFields = append(orderByFields, camelToSnake(orderField[0]) + " " + orderField[1])
+		}
+		query += " ORDER BY " + strings.Join(orderByFields, ", ")
 	}
 
 	// convert each column name to camel case

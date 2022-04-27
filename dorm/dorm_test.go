@@ -436,6 +436,105 @@ func TestFilter(t *testing.T) {
 		db.Find(&results, args)
 	})
 }
+
+func TestOrderBy(t *testing.T) {
+	fmt.Println(">>> ORDER BY TESTS <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20}
+
+	db.Create(&user_nick)
+	db.Create(&user_shannon)
+	db.Create(&user_will)
+	
+	/* ------------------------------------------------------------ */
+
+	fmt.Println("Test: Order by FullName ASC")
+	results := []User{}
+	orderBy := new(OrderBy)
+	addOrder(orderBy, "FullName", "ASC")
+	args := FindArgs{
+		orderBy: *orderBy,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_shannon,
+		user_will,
+	})
+
+	fmt.Println("Test: Order by FullName DESC")
+	results = []User{}
+	orderBy = new(OrderBy)
+	addOrder(orderBy, "FullName", "DESC")
+	args = FindArgs{
+		orderBy: *orderBy,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_will,
+		user_shannon,
+		user_nick,
+	})
+
+	fmt.Println("Test: Order by ClassYear ASC, Age DESC")
+	results = []User{}
+	orderBy = new(OrderBy)
+	addOrder(orderBy, "ClassYear", "ASC")
+	addOrder(orderBy, "Age", "DESC")
+	args = FindArgs{
+		orderBy: *orderBy,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_shannon,
+		user_nick,
+		user_will,
+	})
+
+	fmt.Println("Test: Order by Age DESC, ClassYear ASC")
+	results = []User{}
+	orderBy = new(OrderBy)
+	addOrder(orderBy, "Age", "DESC")
+	addOrder(orderBy, "ClassYear", "ASC")
+	args = FindArgs{
+		orderBy: *orderBy,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_shannon,
+		user_will,
+		user_nick,
+	})
+
+	helperTestPanic(t, func() {
+		fmt.Println("Test: FakeField ASC, None")
+		results = []User{}
+		orderBy = new(OrderBy)
+		addOrder(orderBy, "FakeField", "ASC")
+		args = FindArgs{
+			orderBy: *orderBy,
+		}
+		db.Find(&results, args)
+	})
+
+	helperTestPanic(t, func() {
+		fmt.Println("Test: FullName DSC, None")
+		results = []User{}
+		orderBy = new(OrderBy)
+		addOrder(orderBy, "FullName", "DSC")
+		args = FindArgs{
+			orderBy: *orderBy,
+		}
+		db.Find(&results, args)
+	})
+}
 }
 
 // func TestCustom(t *testing.T) {
