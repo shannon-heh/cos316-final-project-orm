@@ -346,6 +346,7 @@ func buildWhereString(andFilter Filter) string {
 			fields_filters := andFilter[field_name]
 			for field_operator := range fields_filters {
 				operator := ""
+
 				switch field_operator {
 				case "lt":
 					operator = "<"
@@ -359,6 +360,10 @@ func buildWhereString(andFilter Filter) string {
 					operator = "<="
 				case "geq":
 					operator = ">="
+				case "in":
+					operator = "IN"
+				case "nin":
+					operator = "NOT IN"
 				default:
 					log.Panic("Invalid filter operator provided!")
 				}
@@ -368,6 +373,21 @@ func buildWhereString(andFilter Filter) string {
 				case string:
 					condition_str = fmt.Sprintf("%v%v'%v'", camelToSnake(field_name), operator, arg)
 				}
+			
+				if operator == "IN" || operator == "NOT IN" {
+					values := make([]string, 0)
+					for _, value := range fields_filters[field_operator].([]interface{}) {
+						new_value := value
+						switch value.(type) {
+						case string:
+							new_value = fmt.Sprintf("'%v'", new_value)
+						}
+						values = append(values, fmt.Sprintf("%v", new_value))
+					}
+					list_str := fmt.Sprintf("(%v)", strings.Join(values, ","))
+					condition_str = fmt.Sprintf("%v %v %v", camelToSnake(field_name), operator, list_str)
+				}
+
 				filters = append(filters, condition_str)
 			}
 		}

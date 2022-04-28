@@ -280,6 +280,31 @@ func TestFilter(t *testing.T) {
 		user_nick,
 	})
 
+	fmt.Println("Test: Get FullName in ('Nick', 'Will')")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "FullName", "in", []interface{}{"Nick", "Will"})
+	args = FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+	})
+
+	fmt.Println("Test: Get FullName not in ('Nick', 'Will'), Age not in (10, 12)")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "FullName", "nin", []interface{}{"Nick", "Will"})
+	addFilter(filter, "Age", "nin", []interface{}{10, 12})
+	args = FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_shannon,
+	})
+
 	helperTestPanic(t, func() {
 		fmt.Println("Test: Get Name = Nick, None")
 		results = []User{}
@@ -578,6 +603,20 @@ func TestFindFull(t *testing.T) {
 		user_katie,
 	})
 
+	fmt.Println("Test: WHERE ClassYear in (Freshman, Sophomore), LIMIT 2")
+	results = []User{}
+	filter = make(Filter)
+	addFilter(filter, "ClassYear", "in", []interface{}{"Freshman", "Sophomore"})
+	args = FindArgs{
+		andFilter: filter,
+		limit: 2,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_shannon,
+	})
+
 	/* ------------------------------------------------------------ */
 	
 	// WHERE + ORDER BY
@@ -661,6 +700,26 @@ func TestFindFull(t *testing.T) {
 	helperTestEquality(t, results, []User{
 		{FullName: "Albert", IsMale: true},
 		{FullName: "Will", IsMale: true},
+	})
+
+
+	fmt.Println("Test: PROJECT FullName, ClassYear, WHERE Age >= 20, Name not in (Katie), ORDER BY FullName DESC, LIMIT 2")
+	results = []User{}
+	orderBy = new(OrderBy)
+	addOrder(orderBy, "FullName", "DESC")
+	filter = make(Filter)
+	addFilter(filter, "Age", "geq", 20)
+	addFilter(filter, "FullName", "nin", []interface{}{"Katie"})
+	args = FindArgs{
+		projection: []interface{}{"FullName", "ClassYear"},
+		andFilter: filter,
+		orderBy: *orderBy,
+		limit: 2,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		{FullName: "Will", ClassYear: "Senior"},
+		{FullName: "Shannon", ClassYear: "Freshman"},
 	})
 }
 
