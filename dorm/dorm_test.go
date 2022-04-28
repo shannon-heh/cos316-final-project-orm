@@ -759,8 +759,8 @@ func TestDelete(t *testing.T) {
 }
 
 
-func TestUpdate1(t *testing.T) {
-	fmt.Println(">>> UPDATE TEST 1 <<<")
+func TestUpdateOne(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST: 1 ROW <<<")
 	conn := connectSQL()
 	createUserTable(conn)
 
@@ -799,8 +799,8 @@ func TestUpdate1(t *testing.T) {
 	})
 }
 
-func TestUpdate2(t *testing.T) {
-	fmt.Println(">>> UPDATE TEST 2 <<<")
+func TestUpdateTwo(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST: 2 ROWS <<<")
 	conn := connectSQL()
 	createUserTable(conn)
 
@@ -839,8 +839,8 @@ func TestUpdate2(t *testing.T) {
 	})
 }
 
-func TestUpdate3(t *testing.T) {
-	fmt.Println(">>> UPDATE TEST 3 <<<")
+func TestUpdateAll1(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST: ALL <<<")
 	conn := connectSQL()
 	createUserTable(conn)
 
@@ -877,8 +877,47 @@ func TestUpdate3(t *testing.T) {
 	})
 }
 
-func TestUpdate4(t *testing.T) {
-	fmt.Println(">>> UPDATE TEST 4 <<<")
+func TestUpdateAll2(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST: ALL <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20}
+
+	db.Create(&user_nick)
+	db.Create(&user_shannon)
+	db.Create(&user_will)
+
+	/* ------------------------------------------------------------ */
+
+	fmt.Println("Test: Update All Rows")
+	filter := make(Filter)
+	addFilter(filter, "Age", "gt", 1)
+	args := DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	updates := make(Updates)
+	addUpdate(updates, "ClassYear", "Sophomore")
+
+	rows_updated := db.Update(&User{}, args, updates)
+	helperTestIntEquality(t, rows_updated, 3)
+
+	results := []User{}
+	db.Find(&results, FindArgs{})
+	helperTestEquality(t, results, []User{
+		{FullName: "Nick", ClassYear: "Sophomore", Age: 10},
+		{FullName: "Shannon", ClassYear: "Sophomore", Age: 20},
+		{FullName: "Will", ClassYear: "Sophomore", Age: 20},
+	})
+}
+
+func TestUpdateNone(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST: NONE <<<")
 	conn := connectSQL()
 	createUserTable(conn)
 
@@ -916,8 +955,8 @@ func TestUpdate4(t *testing.T) {
 	})
 }
 
-func TestUpdate5(t *testing.T) {
-	fmt.Println(">>> UPDATE TEST 5 <<<")
+func TestUpdateBadField(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST: BAD FIELD <<<")
 	conn := connectSQL()
 	createUserTable(conn)
 
@@ -942,8 +981,8 @@ func TestUpdate5(t *testing.T) {
 	})	
 }
 
-func TestUpdate6(t *testing.T) {
-	fmt.Println(">>> UPDATE TEST 6 <<<")
+func TestUpdateBadType(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST: BAD TYPE <<<")
 	conn := connectSQL()
 	createUserTable(conn)
 
