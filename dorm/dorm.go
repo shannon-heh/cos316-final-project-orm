@@ -312,9 +312,8 @@ func (db *DB) Update(model interface{}, args DeleteOrUpdateArgs, update Updates)
 			log.Panicf("Type of field %v in Update is %v but should be %v!", field, actual_type, expected_type)
 		}
 
-		new_field := fmt.Sprintf("%v=%v", camelToSnake(field), update[field])		
-		switch update[field].(type) {
-		case string:
+		new_field := fmt.Sprintf("%v=%v", camelToSnake(field), update[field])
+		if reflect.TypeOf(update[field]) == reflect.TypeOf("") {
 			new_field = fmt.Sprintf("%v='%v'", camelToSnake(field), update[field])
 		}
 		new_fields = append(new_fields, new_field)
@@ -367,10 +366,12 @@ func buildWhereString(andFilter Filter) string {
 				default:
 					log.Panic("Invalid filter operator provided!")
 				}
+				
 				arg := fields_filters[field_operator]
 				condition_str := fmt.Sprintf("%v%v%v", camelToSnake(field_name), operator, arg)
-				switch arg.(type) {
-				case string:
+				
+				// check type is string
+				if reflect.TypeOf(arg) == reflect.TypeOf("") {
 					condition_str = fmt.Sprintf("%v%v'%v'", camelToSnake(field_name), operator, arg)
 				}
 			
@@ -378,13 +379,15 @@ func buildWhereString(andFilter Filter) string {
 					values := make([]string, 0)
 					for _, value := range fields_filters[field_operator].([]interface{}) {
 						new_value := value
-						switch value.(type) {
-						case string:
+						// check type is string
+						if reflect.TypeOf(value) == reflect.TypeOf("") {
 							new_value = fmt.Sprintf("'%v'", new_value)
 						}
 						values = append(values, fmt.Sprintf("%v", new_value))
 					}
+					// construct (a, b, c)
 					list_str := fmt.Sprintf("(%v)", strings.Join(values, ","))
+					// field IN (a, b, c)
 					condition_str = fmt.Sprintf("%v %v %v", camelToSnake(field_name), operator, list_str)
 				}
 
