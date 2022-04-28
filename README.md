@@ -1,1 +1,5 @@
-# cos316-final-project-orm
+# Somewhat-Dopey ORM (SDORM)
+
+### COS316 Final Project
+
+Shannon Heh, Nicholas Padmanabhan
