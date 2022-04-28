@@ -1,4 +1,4 @@
-package dorm
+package sdorm
 
 import (
 	"database/sql"
