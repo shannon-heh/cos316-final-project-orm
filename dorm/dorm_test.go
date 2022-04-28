@@ -53,6 +53,12 @@ func helperTestEquality(t *testing.T, results []User, expected []User) {
 	}
 }
 
+func helperTestIntEquality(t *testing.T, result int, expected int) {
+	if (result != expected) {
+		t.Errorf("Expected %v but instead got %v rows changed", expected, result)
+	}
+}
+
 func helperTestPanic(t *testing.T, theFunc func() ) {
 	defer func() {
         if r := recover(); r == nil {
@@ -655,5 +661,336 @@ func TestFindFull(t *testing.T) {
 	helperTestEquality(t, results, []User{
 		{FullName: "Albert", IsMale: true},
 		{FullName: "Will", IsMale: true},
+	})
+}
+
+func TestDelete(t *testing.T) {
+	fmt.Println(">>> DELETE TESTS <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20}
+
+	db.Create(&user_nick)
+	db.Create(&user_shannon)
+	db.Create(&user_will)
+
+	/* ------------------------------------------------------------ */
+
+	fmt.Println("Test: Delete Will's Row")
+	filter := make(Filter)
+	addFilter(filter, "FullName", "eq", "Will")
+	args := DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	rows_deleted := db.Delete(&User{}, args)
+	helperTestIntEquality(t, rows_deleted, 1)
+
+	results := []User{}
+	db.Find(&results, FindArgs{})
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_shannon,
+	})
+
+	/* ------------------------------------------------------------ */
+
+	db.Create(&user_will)
+
+	fmt.Println("Test: Delete Freshman Rows")
+	filter = make(Filter)
+	addFilter(filter, "ClassYear", "eq", "Freshman")
+	args = DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	rows_deleted = db.Delete(&User{}, args)
+	helperTestIntEquality(t, rows_deleted, 2)
+
+	results = []User{}
+	db.Find(&results, FindArgs{})
+	helperTestEquality(t, results, []User{
+		user_will,
+	})
+
+	/* ------------------------------------------------------------ */
+
+	db.Create(&user_shannon)
+	db.Create(&user_nick)
+
+	fmt.Println("Test: Delete All Rows")
+	filter = make(Filter)
+	args = DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	rows_deleted = db.Delete(&User{}, args)
+	helperTestIntEquality(t, rows_deleted, 3)
+
+	results = []User{}
+	db.Find(&results, FindArgs{})
+	helperTestEquality(t, results, []User{})
+
+	/* ------------------------------------------------------------ */
+
+	db.Create(&user_shannon)
+	db.Create(&user_nick)
+	db.Create(&user_will)	
+
+	fmt.Println("Test: Delete No Rows")
+	filter = make(Filter)
+	addFilter(filter, "Age", "lt", 0)
+	args = DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	rows_deleted = db.Delete(&User{}, args)
+	helperTestIntEquality(t, rows_deleted, 0)
+
+	results = []User{}
+	db.Find(&results, FindArgs{})
+	helperTestEquality(t, results, []User{
+		user_shannon,
+		user_nick,
+		user_will,
+	})
+}
+
+
+func TestUpdate1(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST 1 <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20}
+
+	db.Create(&user_nick)
+	db.Create(&user_shannon)
+	db.Create(&user_will)
+
+	/* ------------------------------------------------------------ */
+
+	fmt.Println("Test: Update Will's Row")
+	filter := make(Filter)
+	addFilter(filter, "FullName", "eq", "Will")
+	args := DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	updates := make(Updates)
+	addUpdate(updates, "FullName", "Katie")
+	addUpdate(updates, "Age", 15)
+
+	rows_updated := db.Update(&User{}, args, updates)
+	helperTestIntEquality(t, rows_updated, 1)
+
+	results := []User{}
+	db.Find(&results, FindArgs{})
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_shannon,
+		{FullName: "Katie", ClassYear: "Senior", Age: 15},
+	})
+}
+
+func TestUpdate2(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST 2 <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20}
+
+	db.Create(&user_nick)
+	db.Create(&user_shannon)
+	db.Create(&user_will)
+
+	/* ------------------------------------------------------------ */
+
+	fmt.Println("Test: Update Shannon & Will's Row")
+	filter := make(Filter)
+	addFilter(filter, "Age", "gt", 18)
+	args := DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	updates := make(Updates)
+	addUpdate(updates, "ClassYear", "Sophomore")
+	addUpdate(updates, "Age", 21)
+
+	rows_updated := db.Update(&User{}, args, updates)
+	helperTestIntEquality(t, rows_updated, 2)
+
+	results := []User{}
+	db.Find(&results, FindArgs{})
+	helperTestEquality(t, results, []User{
+		user_nick,
+		{FullName: "Shannon", ClassYear: "Sophomore", Age: 21},
+		{FullName: "Will", ClassYear: "Sophomore", Age: 21},
+	})
+}
+
+func TestUpdate3(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST 3 <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20}
+
+	db.Create(&user_nick)
+	db.Create(&user_shannon)
+	db.Create(&user_will)
+
+	/* ------------------------------------------------------------ */
+
+	fmt.Println("Test: Update All Rows")
+	filter := make(Filter)
+	args := DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	updates := make(Updates)
+	addUpdate(updates, "ClassYear", "Sophomore")
+
+	rows_updated := db.Update(&User{}, args, updates)
+	helperTestIntEquality(t, rows_updated, 3)
+
+	results := []User{}
+	db.Find(&results, FindArgs{})
+	helperTestEquality(t, results, []User{
+		{FullName: "Nick", ClassYear: "Sophomore", Age: 10},
+		{FullName: "Shannon", ClassYear: "Sophomore", Age: 20},
+		{FullName: "Will", ClassYear: "Sophomore", Age: 20},
+	})
+}
+
+func TestUpdate4(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST 4 <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20}
+
+	db.Create(&user_nick)
+	db.Create(&user_shannon)
+	db.Create(&user_will)
+
+	/* ------------------------------------------------------------ */
+
+	fmt.Println("Test: Update No Rows")
+	filter := make(Filter)
+	args := DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	addFilter(filter, "ClassYear", "eq", "Junior")
+	updates := make(Updates)
+	addUpdate(updates, "FullName", "Boo")
+
+	rows_updated := db.Update(&User{}, args, updates)
+	helperTestIntEquality(t, rows_updated, 0)
+
+	results := []User{}
+	db.Find(&results, FindArgs{})
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_shannon,
+		user_will,
+	})
+}
+
+func TestUpdate5(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST 5 <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10}
+	db.Create(&user_nick)
+
+	/* ------------------------------------------------------------ */
+
+	fmt.Println("Test: Field Doesn't Exist")
+	filter := make(Filter)
+	args := DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	updates := make(Updates)
+	addUpdate(updates, "FakeField", "")
+
+	helperTestPanic(t, func() {
+		db.Update(&User{}, args, updates)
+	})	
+}
+
+func TestUpdate6(t *testing.T) {
+	fmt.Println(">>> UPDATE TEST 6 <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10}
+	db.Create(&user_nick)
+
+	/* ------------------------------------------------------------ */
+
+	fmt.Println("Test: Invalid Field Value")
+	filter := make(Filter)
+	args := DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	updates := make(Updates)
+	addUpdate(updates, "ClassYear", 0)
+
+	helperTestPanic(t, func() {
+		db.Update(&User{}, args, updates)
+	})	
+}
+
+func TestInvalidTable(t *testing.T) {
+	fmt.Println(">>> INVALID TABLE TEST <<<")
+	conn := connectSQL()
+	createUserTable(conn)
+
+	db := NewDB(conn)
+	defer db.Close()
+
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10}
+
+	db.Create(&user_nick)
+
+	/* ------------------------------------------------------------ */
+
+	type Bad struct {}
+	args := DeleteOrUpdateArgs{}
+	updates := make(Updates)
+
+	helperTestPanic(t, func() {
+		db.Delete(&Bad{}, args)
+	})
+
+	helperTestPanic(t, func() {
+		db.Update(&Bad{}, args, updates)
 	})
 }

@@ -62,6 +62,17 @@ func addOrder(orderBy *OrderBy, field string, order string) {
 	*orderBy = append(*orderBy, fieldOrder)
 }
 
+// arguments for Delete or Update
+type DeleteOrUpdateArgs struct {
+	andFilter  Filter
+}
+
+type Updates map[string]interface{}
+
+func addUpdate(updates Updates, field string, value interface{}) {
+	updates[field] = value
+}
+
 // arguments for Find
 type FindArgs struct {
 	projection []interface{}
@@ -133,42 +144,9 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 	// construct query with projected columns
 	query = fmt.Sprintf(query, snake_projection...)
 
-	// add AND filters
-	if len(args.andFilter) > 0 {
-		// an array of "field_name operator value"
-		filters := make([]string, 0)
-		for field_name := range args.andFilter {
-			fields_filters := args.andFilter[field_name]
-			for field_operator := range fields_filters {
-				operator := ""
-				switch field_operator {
-				case "lt":
-					operator = "<"
-				case "gt":
-					operator = ">"
-				case "eq":
-					operator = "="
-				case "neq":
-					operator = "!="
-				case "leq":
-					operator = "<="
-				case "geq":
-					operator = ">="
-				default:
-					log.Panic("Invalid filter operator provided!")
-				}
-				arg := fields_filters[field_operator]
-				condition_str := fmt.Sprintf("%v%v%v", camelToSnake(field_name), operator, arg)
-				switch arg.(type) {
-				case string:
-					condition_str = fmt.Sprintf("%v%v'%v'", camelToSnake(field_name), operator, arg)
-				}
-				filters = append(filters, condition_str)
-			}
-		}
-		query += " WHERE " + strings.Join(filters, " AND ")
-	}
-
+	// add WHERE string if necessary
+	query += buildWhereString(args.andFilter)
+	
 	// add ORDER BY
 	if len(args.orderBy) > 0 {
 		orderByFields := make([]string, 0)
@@ -250,18 +228,7 @@ func (db *DB) Find(result interface{}, args FindArgs) {
 	returned from the underlying sql database.
 */
 func (db *DB) Create(model interface{}) {
-	tablename := TableName(model)
-	query := fmt.Sprintf("SELECT * FROM %v", tablename)
-	rows, err := db.inner.Query(query)
-	for rows.Next() {
-		// must do this to prevent table not found error
-	}
-
-	if err != nil {
-		log.Panic(fmt.Sprintf("Table %v not found!", tablename))
-	}
-
-	defer rows.Close()
+	tablename := db.checkTableExists(model)
 
 	elem := reflect.TypeOf(model).Elem()
 	res := reflect.New(elem)
@@ -289,7 +256,7 @@ func (db *DB) Create(model interface{}) {
 		fields = append(fields, v_model.Field(i).Interface())
 	}
 
-	query = fmt.Sprintf("INSERT or REPLACE INTO %v(%v) VALUES(%v)", tablename, strings.Join(cols, ","), strings.Join(placeholder, ","))
+	query := fmt.Sprintf("INSERT or REPLACE INTO %v(%v) VALUES(%v)", tablename, strings.Join(cols, ","), strings.Join(placeholder, ","))
 
 	insert_res, err := db.inner.Exec(query, fields...)
 	if err != nil {
@@ -312,6 +279,118 @@ func (db *DB) Create(model interface{}) {
 	}
 	the_struct.Set(new_struct)
 
+}
+
+func (db *DB) Delete(model interface{}, args DeleteOrUpdateArgs) int {
+	tablename := db.checkTableExists(model)
+	query := fmt.Sprintf("DELETE FROM %v", tablename)
+	query += buildWhereString(args.andFilter)
+
+	delete_res, err := db.inner.Exec(query)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	rows_affected, err := delete_res.RowsAffected()
+	if err != nil {
+		log.Panic(err)
+	}
+	
+	return int(rows_affected)
+}
+
+func (db *DB) Update(model interface{}, args DeleteOrUpdateArgs, update Updates) int {
+	tablename := db.checkTableExists(model)
+	query := fmt.Sprintf("UPDATE %v", tablename)
+
+	new_fields := make([]string, 0)
+	for field := range update {
+		// verify that types match those in model
+		expected_type := reflect.ValueOf(model).Elem().FieldByName(field).Type()
+		actual_type := reflect.TypeOf(update[field])
+		if expected_type != actual_type {
+			log.Panicf("Type of field %v in Update is %v but should be %v!", field, actual_type, expected_type)
+		}
+
+		new_field := fmt.Sprintf("%v=%v", camelToSnake(field), update[field])		
+		switch update[field].(type) {
+		case string:
+			new_field = fmt.Sprintf("%v='%v'", camelToSnake(field), update[field])
+		}
+		new_fields = append(new_fields, new_field)
+	}
+	
+	query += " SET " + strings.Join(new_fields, ",")
+	query += buildWhereString(args.andFilter)
+
+	update_res, err := db.inner.Exec(query)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	rows_affected, err := update_res.RowsAffected()
+	if err != nil {
+		log.Panic(err)
+	}
+	
+	return int(rows_affected)
+}
+
+// given a Filter, built the WHERE portion of a SQL query
+func buildWhereString(andFilter Filter) string {
+	whereString := ""
+	if len(andFilter) > 0 {
+		// an array of "field_name operator value"
+		filters := make([]string, 0)
+		for field_name := range andFilter {
+			fields_filters := andFilter[field_name]
+			for field_operator := range fields_filters {
+				operator := ""
+				switch field_operator {
+				case "lt":
+					operator = "<"
+				case "gt":
+					operator = ">"
+				case "eq":
+					operator = "="
+				case "neq":
+					operator = "!="
+				case "leq":
+					operator = "<="
+				case "geq":
+					operator = ">="
+				default:
+					log.Panic("Invalid filter operator provided!")
+				}
+				arg := fields_filters[field_operator]
+				condition_str := fmt.Sprintf("%v%v%v", camelToSnake(field_name), operator, arg)
+				switch arg.(type) {
+				case string:
+					condition_str = fmt.Sprintf("%v%v'%v'", camelToSnake(field_name), operator, arg)
+				}
+				filters = append(filters, condition_str)
+			}
+		}
+		whereString = " WHERE " + strings.Join(filters, " AND ")
+	}
+	return whereString
+}
+
+func (db *DB) checkTableExists(model interface{}) string {
+	tablename := TableName(model)
+	query := fmt.Sprintf("SELECT * FROM %v", tablename)
+	rows, err := db.inner.Query(query)
+
+	if err != nil {
+		log.Panic(fmt.Sprintf("Table %v not found!", tablename))
+	}
+	for rows.Next() {
+		// must do this to prevent table not found error
+	}
+
+	defer rows.Close()
+
+	return tablename
 }
 
 // converts camel case to underscore (snake) case
@@ -342,7 +421,6 @@ func stringInSlice(a string, list []interface{}) bool {
 // The i'th string returned should be equal to the name of the i'th
 // public field of v, converted to underscore_case.
 // Refer to the specification of underscore_case, below.
-
 // Example usage:
 // type MyStruct struct {
 //    ID int64
