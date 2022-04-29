@@ -29,42 +29,53 @@ func createUserTable(conn *sql.DB) {
 	}
 }
 
+// User Table Schema
 type User struct {
 	FullName  string
-	Age 	  int
+	Age       int
 	ClassYear string
-	IsMale 	  bool
+	IsMale    bool
 }
 
+/*
+	Helper method to test that field values in resulting row values match expected row values,
+	and that the rows appear in the same order.
+*/
 func helperTestEquality(t *testing.T, results []User, expected []User) {
-	if (len(results) != len(expected)) {
-		t.Errorf("Expected %v rows but instead found %v rows",  len(expected), len(results))
+	if len(results) != len(expected) {
+		t.Errorf("Expected %v rows but instead found %v rows", len(expected), len(results))
 	}
-	for i, result := range(results) {
-		if (result.FullName != expected[i].FullName) {
-			t.Errorf("Expected %v but instead found %v",  expected[i].FullName, result.FullName)
+	for i, result := range results {
+		if result.FullName != expected[i].FullName {
+			t.Errorf("Expected %v but instead found %v", expected[i].FullName, result.FullName)
 		}
-		if (result.Age != expected[i].Age) {
-			t.Errorf("Expected %v but instead found %v",  expected[i].Age, result.Age)
+		if result.Age != expected[i].Age {
+			t.Errorf("Expected %v but instead found %v", expected[i].Age, result.Age)
 		}
-		if (result.ClassYear != expected[i].ClassYear) {
-			t.Errorf("Expected %v but instead found %v",  expected[i].ClassYear, result.ClassYear)
+		if result.ClassYear != expected[i].ClassYear {
+			t.Errorf("Expected %v but instead found %v", expected[i].ClassYear, result.ClassYear)
 		}
 	}
 }
 
+/*
+	Helper method to test that the number of rows updated or deleted matches its expected value.
+*/
 func helperTestIntEquality(t *testing.T, result int, expected int) {
-	if (result != expected) {
+	if result != expected {
 		t.Errorf("Expected %v but instead got %v rows changed", expected, result)
 	}
 }
 
-func helperTestPanic(t *testing.T, theFunc func() ) {
+/*
+	Helper method to verify that a block of code panics.
+*/
+func helperTestPanic(t *testing.T, theFunc func()) {
 	defer func() {
-        if r := recover(); r == nil {
-            t.Errorf("Expected panic but none generated")
-        }
-    }()
+		if r := recover(); r == nil {
+			t.Errorf("Expected panic but none generated")
+		}
+	}()
 
 	theFunc()
 }
@@ -81,7 +92,7 @@ func TestProjection(t *testing.T) {
 	user_shannon := User{FullName: "Shannon", ClassYear: "Senior", Age: 20}
 	db.Create(&user_nick)
 	db.Create(&user_shannon)
-	
+
 	/* ------------------------------------------------------------ */
 
 	fmt.Println("Test: Only FullName")
@@ -105,7 +116,7 @@ func TestProjection(t *testing.T) {
 		{ClassYear: "Freshman", Age: 10},
 		{ClassYear: "Senior", Age: 20},
 	})
-	
+
 	fmt.Println("Test: Only ClassYear and Age")
 	results = []User{}
 	args = FindArgs{
@@ -185,7 +196,7 @@ func TestFilter(t *testing.T) {
 	helperTestEquality(t, results, []User{
 		user_nick,
 	})
-	
+
 	fmt.Println("Test: Get Age < 15, Only Nick")
 	results = []User{}
 	filter = make(Filter)
@@ -242,7 +253,7 @@ func TestFilter(t *testing.T) {
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{})
-	
+
 	fmt.Println("Test: Get IsMale = true, Only Shannon")
 	results = []User{}
 	filter = make(Filter)
@@ -344,7 +355,7 @@ func TestOrderBy(t *testing.T) {
 	db.Create(&user_nick)
 	db.Create(&user_shannon)
 	db.Create(&user_will)
-	
+
 	/* ------------------------------------------------------------ */
 
 	fmt.Println("Test: Order by FullName ASC")
@@ -443,7 +454,7 @@ func TestLimit(t *testing.T) {
 	db.Create(&user_nick)
 	db.Create(&user_shannon)
 	db.Create(&user_will)
-	
+
 	/* ------------------------------------------------------------ */
 
 	fmt.Println("Test: LIMIT 1")
@@ -513,7 +524,7 @@ func TestFindFull(t *testing.T) {
 	db.Create(&user_albert)
 
 	/* ------------------------------------------------------------ */
-	
+
 	// PROJECT + WHERE
 
 	fmt.Println("Test: PROJECT FullName, IsMale, WHERE ClassYear != Freshman, Age > 20")
@@ -523,7 +534,7 @@ func TestFindFull(t *testing.T) {
 	addFilter(filter, "Age", "gt", 20)
 	args := FindArgs{
 		projection: []interface{}{"FullName", "IsMale"},
-		andFilter: filter,
+		andFilter:  filter,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -538,7 +549,7 @@ func TestFindFull(t *testing.T) {
 	addFilter(filter, "IsMale", "eq", true)
 	args = FindArgs{
 		projection: []interface{}{"Age", "ClassYear"},
-		andFilter: filter,
+		andFilter:  filter,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -548,14 +559,14 @@ func TestFindFull(t *testing.T) {
 	})
 
 	/* ------------------------------------------------------------ */
-	
+
 	// PROJECT + LIMIT
 
 	fmt.Println("Test: PROJECT FullName, LIMIT 2")
 	results = []User{}
 	args = FindArgs{
 		projection: []interface{}{"FullName"},
-		limit: 2,
+		limit:      2,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -564,7 +575,7 @@ func TestFindFull(t *testing.T) {
 	})
 
 	/* ------------------------------------------------------------ */
-	
+
 	// PROJECT + ORDER BY
 
 	fmt.Println("Test: PROJECT FullName, Age ORDER BY Age DESC, FullName ASC")
@@ -574,7 +585,7 @@ func TestFindFull(t *testing.T) {
 	addOrder(orderBy, "FullName", "ASC")
 	args = FindArgs{
 		projection: []interface{}{"FullName", "Age"},
-		orderBy: *orderBy,
+		orderBy:    *orderBy,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -586,7 +597,7 @@ func TestFindFull(t *testing.T) {
 	})
 
 	/* ------------------------------------------------------------ */
-	
+
 	// WHERE + LIMIT
 
 	fmt.Println("Test: WHERE Age != 20, LIMIT 2")
@@ -595,7 +606,7 @@ func TestFindFull(t *testing.T) {
 	addFilter(filter, "Age", "neq", 20)
 	args = FindArgs{
 		andFilter: filter,
-		limit: 2,
+		limit:     2,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -609,7 +620,7 @@ func TestFindFull(t *testing.T) {
 	addFilter(filter, "ClassYear", "in", []interface{}{"Freshman", "Sophomore"})
 	args = FindArgs{
 		andFilter: filter,
-		limit: 2,
+		limit:     2,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -618,7 +629,7 @@ func TestFindFull(t *testing.T) {
 	})
 
 	/* ------------------------------------------------------------ */
-	
+
 	// WHERE + ORDER BY
 
 	fmt.Println("Test: WHERE IsMale != false, ORDER BY FullName ASC")
@@ -629,7 +640,7 @@ func TestFindFull(t *testing.T) {
 	addOrder(orderBy, "FullName", "ASC")
 	args = FindArgs{
 		andFilter: filter,
-		orderBy: *orderBy,
+		orderBy:   *orderBy,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -639,7 +650,7 @@ func TestFindFull(t *testing.T) {
 	})
 
 	/* ------------------------------------------------------------ */
-	
+
 	// LIMIT + ORDER BY
 
 	fmt.Println("Test: ORDER BY IsMale ASC, Age DESC, LIMIT 4")
@@ -649,7 +660,7 @@ func TestFindFull(t *testing.T) {
 	addOrder(orderBy, "Age", "DESC")
 	args = FindArgs{
 		orderBy: *orderBy,
-		limit: 4,
+		limit:   4,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -660,7 +671,7 @@ func TestFindFull(t *testing.T) {
 	})
 
 	/* ------------------------------------------------------------ */
-	
+
 	// PROJECT + WHERE + ORDER BY + LIMIT
 
 	fmt.Println("Test: PROJECT ClassYear, Age, WHERE AGE > 18 and AGE <= 30, ORDER BY ClassYear DESC, LIMIT 10")
@@ -672,9 +683,9 @@ func TestFindFull(t *testing.T) {
 	addFilter(filter, "Age", "leq", 30)
 	args = FindArgs{
 		projection: []interface{}{"ClassYear", "Age"},
-		andFilter: filter,
-		orderBy: *orderBy,
-		limit: 10,
+		andFilter:  filter,
+		orderBy:    *orderBy,
+		limit:      10,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -692,16 +703,15 @@ func TestFindFull(t *testing.T) {
 	addFilter(filter, "ClassYear", "gt", "Freshman")
 	args = FindArgs{
 		projection: []interface{}{"FullName", "IsMale"},
-		andFilter: filter,
-		orderBy: *orderBy,
-		limit: 2,
+		andFilter:  filter,
+		orderBy:    *orderBy,
+		limit:      2,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
 		{FullName: "Albert", IsMale: true},
 		{FullName: "Will", IsMale: true},
 	})
-
 
 	fmt.Println("Test: PROJECT FullName, ClassYear, WHERE Age >= 20, Name not in (Katie), ORDER BY FullName DESC, LIMIT 2")
 	results = []User{}
@@ -712,9 +722,9 @@ func TestFindFull(t *testing.T) {
 	addFilter(filter, "FullName", "nin", []interface{}{"Katie"})
 	args = FindArgs{
 		projection: []interface{}{"FullName", "ClassYear"},
-		andFilter: filter,
-		orderBy: *orderBy,
-		limit: 2,
+		andFilter:  filter,
+		orderBy:    *orderBy,
+		limit:      2,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
@@ -797,7 +807,7 @@ func TestDelete(t *testing.T) {
 
 	db.Create(&user_shannon)
 	db.Create(&user_nick)
-	db.Create(&user_will)	
+	db.Create(&user_will)
 
 	fmt.Println("Test: Delete No Rows")
 	filter = make(Filter)
@@ -816,7 +826,6 @@ func TestDelete(t *testing.T) {
 		user_will,
 	})
 }
-
 
 func TestUpdateOne(t *testing.T) {
 	fmt.Println(">>> UPDATE TEST: 1 ROW <<<")
@@ -1037,7 +1046,7 @@ func TestUpdateBadField(t *testing.T) {
 
 	helperTestPanic(t, func() {
 		db.Update(&User{}, args, updates)
-	})	
+	})
 }
 
 func TestUpdateBadType(t *testing.T) {
@@ -1063,7 +1072,7 @@ func TestUpdateBadType(t *testing.T) {
 
 	helperTestPanic(t, func() {
 		db.Update(&User{}, args, updates)
-	})	
+	})
 }
 
 func TestInvalidTable(t *testing.T) {
@@ -1080,7 +1089,7 @@ func TestInvalidTable(t *testing.T) {
 
 	/* ------------------------------------------------------------ */
 
-	type Bad struct {}
+	type Bad struct{}
 	args := DeleteOrUpdateArgs{}
 	updates := make(Updates)
 
