@@ -1101,3 +1101,154 @@ func TestInvalidTable(t *testing.T) {
 		db.Update(&Bad{}, args, updates)
 	})
 }
+
+func TestVideoDemo(t *testing.T) {
+	/*
+		// User model
+		type User struct {
+			FullName  string
+			Age       int
+			ClassYear string
+			IsMale    bool
+		}
+	*/
+
+	// set up database connection
+	conn := connectSQL()
+	createUserTable(conn)
+	db := NewDB(conn)
+	defer db.Close()
+
+	// create dummy data with User model
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10, IsMale: true}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20, IsMale: false}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20, IsMale: true}
+	user_katie := User{FullName: "Katie", ClassYear: "Sophomore", Age: 30, IsMale: false}
+	user_albert := User{FullName: "Albert", ClassYear: "Senior", Age: 40, IsMale: true}
+
+	// insert dummy data into user table
+	db.Create(&user_nick)
+	db.Create(&user_shannon)
+	db.Create(&user_will)
+	db.Create(&user_katie)
+	db.Create(&user_albert)
+
+	/* ------------------------------------------------------------ */
+
+	// demonstration of Find with one filter condition: Age <= 20
+	results := []User{}
+
+	filter := make(Filter)
+	addFilter(filter, "Age", "leq", 20)
+
+	args := FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	// check that the returned Users are nick, shannon, and will
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_shannon,
+		user_will,
+	})
+
+	/* ------------------------------------------------------------ */
+
+	// demonstration of Find with multiple filter conditions: FullName not in (Nick, Will),
+	// Age in (20, 30, 40), isMale = true
+	results = []User{}
+
+	filter = make(Filter)
+	addFilter(filter, "FullName", "nin", []interface{}{"Nick", "Will"})
+	addFilter(filter, "Age", "in", []interface{}{20, 30, 40})
+	addFilter(filter, "isMale", "eq", true)
+
+	args = FindArgs{
+		andFilter: filter,
+	}
+	db.Find(&results, args)
+	// check that the returned User is albert
+	helperTestEquality(t, results, []User{
+		user_albert,
+	})
+
+	/* ------------------------------------------------------------ */
+
+	// demonstration of Find with projection, filtering, ordering, and limit:
+	// Age >= 20, FullName not in (Katie)
+	// Order by FullName, descending
+	// Projection for FullName and ClassYear fields
+	// Limit to only 2 rows
+	results = []User{}
+
+	orderBy := new(OrderBy)
+	addOrder(orderBy, "FullName", "DESC")
+
+	filter = make(Filter)
+	addFilter(filter, "Age", "geq", 20)
+	addFilter(filter, "FullName", "nin", []interface{}{"Katie"})
+
+	args = FindArgs{
+		projection: []interface{}{"FullName", "ClassYear"},
+		andFilter:  filter,
+		orderBy:    *orderBy,
+		limit:      2,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		{FullName: "Will", ClassYear: "Senior"},
+		{FullName: "Shannon", ClassYear: "Freshman"},
+	})
+
+	/* ------------------------------------------------------------ */
+
+	// demonstration of Update on rows where Age >= 18: change ClassYear to "Sophomore" and Age to 21
+	filter = make(Filter)
+
+	addFilter(filter, "Age", "gt", 18)
+	update_args := DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+
+	updates := make(Updates)
+	addUpdate(updates, "ClassYear", "Sophomore")
+	addUpdate(updates, "Age", 21)
+
+	rows_updated := db.Update(&User{}, update_args, updates)
+	helperTestIntEquality(t, rows_updated, 4)
+
+	// check that rows were properly updated by fetching all rows using Find without a filter
+	results = []User{}
+	db.Find(&results, FindArgs{})
+	helperTestEquality(t, results, []User{
+		user_nick, // nick is the only row where age is 10, which is < 18
+		{FullName: "Shannon", ClassYear: "Sophomore", Age: 21},
+		{FullName: "Will", ClassYear: "Sophomore", Age: 21},
+		{FullName: "Katie", ClassYear: "Sophomore", Age: 21},
+		{FullName: "Albert", ClassYear: "Sophomore", Age: 21},
+	})
+
+	/* ------------------------------------------------------------ */
+
+	// demonstration of Delete on rows where FullName in (Will, Katie, Albert), ClassYear = "Senior",
+	// and isMale = true
+
+	filter = make(Filter)
+	addFilter(filter, "FullName", "in", []interface{}{"Will", "Katie", "Albert"})
+	addFilter(filter, "ClassYear", "eq", "Sophomore")
+	addFilter(filter, "isMale", "eq", true)
+	delete_args := DeleteOrUpdateArgs{
+		andFilter: filter,
+	}
+	rows_deleted := db.Delete(&User{}, delete_args)
+	helperTestIntEquality(t, rows_deleted, 2)
+
+	// check that rows were properly updated by fetching all rows using Find without a filter
+	results = []User{}
+	db.Find(&results, FindArgs{})
+	helperTestEquality(t, results, []User{
+		user_nick,
+		{FullName: "Shannon", ClassYear: "Sophomore", Age: 21}, // this row was modified in Update (above)
+		{FullName: "Katie", ClassYear: "Sophomore", Age: 21},   // this row was modified in Update (above)
+	})
+}
