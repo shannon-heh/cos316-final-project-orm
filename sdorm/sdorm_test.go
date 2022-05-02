@@ -1171,6 +1171,8 @@ func TestVideoDemo(t *testing.T) {
 
 	/* ------------------------------------------------------------ */
 
+	// demonstration of Find with primary ordering of ClassYear ascending,
+	// and secondary ordering of Age descending
 	results = []User{}
 	orderBy := new(OrderBy)
 	addOrder(orderBy, "ClassYear", "ASC")
@@ -1189,11 +1191,24 @@ func TestVideoDemo(t *testing.T) {
 
 	/* ------------------------------------------------------------ */
 
+	// demonstration of Find with returned rows limit of 2
+	results = []User{}
+	args = FindArgs{
+		limit: 2,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_nick,
+		user_shannon,
+	})
+
+	/* ------------------------------------------------------------ */
+
 	// demonstration of Find with projection, filtering, ordering, and limit:
 	// Age >= 20, FullName not in (Katie)
 	// Order by FullName, descending
 	// Projection for FullName and ClassYear fields
-	// Limit to only 2 rows
+	// Limit to 2 returned rows
 	results = []User{}
 
 	orderBy = new(OrderBy)
@@ -1217,7 +1232,8 @@ func TestVideoDemo(t *testing.T) {
 
 	/* ------------------------------------------------------------ */
 
-	// demonstration of Update on rows where Age >= 18: change ClassYear to "Sophomore" and Age to 21
+	// demonstration of Update on rows where Age >= 18:
+	// change ClassYear to "Sophomore" and Age to 21
 	filter = make(Filter)
 
 	addFilter(filter, "Age", "gt", 18)
@@ -1245,16 +1261,23 @@ func TestVideoDemo(t *testing.T) {
 
 	/* ------------------------------------------------------------ */
 
-	// demonstration of Delete on rows where FullName in (Will, Katie, Albert), ClassYear = "Senior",
-	// and IsEnrolled = true
+	// change variables user_shannon and user_katie because they were modified above (for the sake of the demo)
+	user_shannon = User{FullName: "Shannon", ClassYear: "Sophomore", Age: 21, IsEnrolled: false}
+	user_katie = User{FullName: "Katie", ClassYear: "Sophomore", Age: 21, IsEnrolled: false}
 
+	/* ------------------------------------------------------------ */
+
+	// demonstration of Delete on rows where
+	// FullName in (Will, Katie, Albert), ClassYear = "Senior", and IsEnrolled = true
 	filter = make(Filter)
 	addFilter(filter, "FullName", "in", []interface{}{"Will", "Katie", "Albert"})
 	addFilter(filter, "ClassYear", "eq", "Sophomore")
 	addFilter(filter, "IsEnrolled", "eq", true)
+
 	delete_args := DeleteOrUpdateArgs{
 		andFilter: filter,
 	}
+
 	rows_deleted := db.Delete(&User{}, delete_args)
 	helperTestIntEquality(t, rows_deleted, 2)
 
@@ -1263,7 +1286,7 @@ func TestVideoDemo(t *testing.T) {
 	db.Find(&results, FindArgs{})
 	helperTestEquality(t, results, []User{
 		user_nick,
-		{FullName: "Shannon", ClassYear: "Sophomore", Age: 21}, // this row was modified in Update (above)
-		{FullName: "Katie", ClassYear: "Sophomore", Age: 21},   // this row was modified in Update (above)
+		user_shannon,
+		user_katie,
 	})
 }
