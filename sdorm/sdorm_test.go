@@ -21,7 +21,7 @@ func createUserTable(conn *sql.DB) {
 		full_name text,
 		age int,
 		class_year text,
-		is_male int
+		is_enrolled int
 	)`)
 
 	if err != nil {
@@ -31,10 +31,10 @@ func createUserTable(conn *sql.DB) {
 
 // User Table Schema
 type User struct {
-	FullName  string
-	Age       int
-	ClassYear string
-	IsMale    bool
+	FullName   string
+	Age        int
+	ClassYear  string
+	IsEnrolled bool
 }
 
 /*
@@ -177,8 +177,8 @@ func TestFilter(t *testing.T) {
 	db := NewDB(conn)
 	defer db.Close()
 
-	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10, IsMale: true}
-	user_shannon := User{FullName: "Shannon", ClassYear: "Senior", Age: 20, IsMale: false}
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10, IsEnrolled: true}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Senior", Age: 20, IsEnrolled: false}
 
 	db.Create(&user_nick)
 	db.Create(&user_shannon)
@@ -254,10 +254,10 @@ func TestFilter(t *testing.T) {
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{})
 
-	fmt.Println("Test: Get IsMale = true, Only Shannon")
+	fmt.Println("Test: Get IsEnrolled = true, Only Shannon")
 	results = []User{}
 	filter = make(Filter)
-	addFilter(filter, "IsMale", "neq", true)
+	addFilter(filter, "IsEnrolled", "neq", true)
 	args = FindArgs{
 		andFilter: filter,
 	}
@@ -266,10 +266,10 @@ func TestFilter(t *testing.T) {
 		user_shannon,
 	})
 
-	fmt.Println("Test: Get IsMale = false, Only Shannon")
+	fmt.Println("Test: Get IsEnrolled = false, Only Shannon")
 	results = []User{}
 	filter = make(Filter)
-	addFilter(filter, "IsMale", "eq", false)
+	addFilter(filter, "IsEnrolled", "eq", false)
 	args = FindArgs{
 		andFilter: filter,
 	}
@@ -278,10 +278,10 @@ func TestFilter(t *testing.T) {
 		user_shannon,
 	})
 
-	fmt.Println("Test: Get IsMale = true and FullName = Nicj, Only Nick")
+	fmt.Println("Test: Get IsEnrolled = true and FullName = Nicj, Only Nick")
 	results = []User{}
 	filter = make(Filter)
-	addFilter(filter, "IsMale", "eq", true)
+	addFilter(filter, "IsEnrolled", "eq", true)
 	addFilter(filter, "FullName", "gt", "Nicj")
 	args = FindArgs{
 		andFilter: filter,
@@ -511,11 +511,11 @@ func TestFindFull(t *testing.T) {
 	db := NewDB(conn)
 	defer db.Close()
 
-	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10, IsMale: true}
-	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20, IsMale: false}
-	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20, IsMale: true}
-	user_katie := User{FullName: "Katie", ClassYear: "Sophomore", Age: 30, IsMale: false}
-	user_albert := User{FullName: "Albert", ClassYear: "Senior", Age: 40, IsMale: true}
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10, IsEnrolled: true}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20, IsEnrolled: false}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20, IsEnrolled: true}
+	user_katie := User{FullName: "Katie", ClassYear: "Sophomore", Age: 30, IsEnrolled: false}
+	user_albert := User{FullName: "Albert", ClassYear: "Senior", Age: 40, IsEnrolled: true}
 
 	db.Create(&user_nick)
 	db.Create(&user_shannon)
@@ -527,26 +527,26 @@ func TestFindFull(t *testing.T) {
 
 	// PROJECT + WHERE
 
-	fmt.Println("Test: PROJECT FullName, IsMale, WHERE ClassYear != Freshman, Age > 20")
+	fmt.Println("Test: PROJECT FullName, IsEnrolled, WHERE ClassYear != Freshman, Age > 20")
 	results := []User{}
 	filter := make(Filter)
 	addFilter(filter, "ClassYear", "neq", "Freshman")
 	addFilter(filter, "Age", "gt", 20)
 	args := FindArgs{
-		projection: []interface{}{"FullName", "IsMale"},
+		projection: []interface{}{"FullName", "IsEnrolled"},
 		andFilter:  filter,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
-		{FullName: "Katie", IsMale: false},
-		{FullName: "Albert", IsMale: true},
+		{FullName: "Katie", IsEnrolled: false},
+		{FullName: "Albert", IsEnrolled: true},
 	})
 
 	// add IN operator
-	fmt.Println("Test: PROJECT Age, ClassYear, WHERE IsMale = true")
+	fmt.Println("Test: PROJECT Age, ClassYear, WHERE IsEnrolled = true")
 	results = []User{}
 	filter = make(Filter)
-	addFilter(filter, "IsMale", "eq", true)
+	addFilter(filter, "IsEnrolled", "eq", true)
 	args = FindArgs{
 		projection: []interface{}{"Age", "ClassYear"},
 		andFilter:  filter,
@@ -632,10 +632,10 @@ func TestFindFull(t *testing.T) {
 
 	// WHERE + ORDER BY
 
-	fmt.Println("Test: WHERE IsMale != false, ORDER BY FullName ASC")
+	fmt.Println("Test: WHERE IsEnrolled != false, ORDER BY FullName ASC")
 	results = []User{}
 	filter = make(Filter)
-	addFilter(filter, "IsMale", "neq", false)
+	addFilter(filter, "IsEnrolled", "neq", false)
 	orderBy = new(OrderBy)
 	addOrder(orderBy, "FullName", "ASC")
 	args = FindArgs{
@@ -653,10 +653,10 @@ func TestFindFull(t *testing.T) {
 
 	// LIMIT + ORDER BY
 
-	fmt.Println("Test: ORDER BY IsMale ASC, Age DESC, LIMIT 4")
+	fmt.Println("Test: ORDER BY IsEnrolled ASC, Age DESC, LIMIT 4")
 	results = []User{}
 	orderBy = new(OrderBy)
-	addOrder(orderBy, "IsMale", "ASC")
+	addOrder(orderBy, "IsEnrolled", "ASC")
 	addOrder(orderBy, "Age", "DESC")
 	args = FindArgs{
 		orderBy: *orderBy,
@@ -694,23 +694,23 @@ func TestFindFull(t *testing.T) {
 		{ClassYear: "Freshman", Age: 20},
 	})
 
-	fmt.Println("Test: PROJECT FullName, IsMale, WHERE IsMale = true, ClassYear > Freshman, ORDER BY FullName ASC, LIMIT 2")
+	fmt.Println("Test: PROJECT FullName, IsEnrolled, WHERE IsEnrolled = true, ClassYear > Freshman, ORDER BY FullName ASC, LIMIT 2")
 	results = []User{}
 	orderBy = new(OrderBy)
 	addOrder(orderBy, "FullName", "ASC")
 	filter = make(Filter)
-	addFilter(filter, "IsMale", "eq", true)
+	addFilter(filter, "IsEnrolled", "eq", true)
 	addFilter(filter, "ClassYear", "gt", "Freshman")
 	args = FindArgs{
-		projection: []interface{}{"FullName", "IsMale"},
+		projection: []interface{}{"FullName", "IsEnrolled"},
 		andFilter:  filter,
 		orderBy:    *orderBy,
 		limit:      2,
 	}
 	db.Find(&results, args)
 	helperTestEquality(t, results, []User{
-		{FullName: "Albert", IsMale: true},
-		{FullName: "Will", IsMale: true},
+		{FullName: "Albert", IsEnrolled: true},
+		{FullName: "Will", IsEnrolled: true},
 	})
 
 	fmt.Println("Test: PROJECT FullName, ClassYear, WHERE Age >= 20, Name not in (Katie), ORDER BY FullName DESC, LIMIT 2")
@@ -1109,7 +1109,7 @@ func TestVideoDemo(t *testing.T) {
 			FullName  string
 			Age       int
 			ClassYear string
-			IsMale    bool
+			IsEnrolled    bool
 		}
 	*/
 
@@ -1120,11 +1120,11 @@ func TestVideoDemo(t *testing.T) {
 	defer db.Close()
 
 	// create dummy data with User model
-	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10, IsMale: true}
-	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20, IsMale: false}
-	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20, IsMale: true}
-	user_katie := User{FullName: "Katie", ClassYear: "Sophomore", Age: 30, IsMale: false}
-	user_albert := User{FullName: "Albert", ClassYear: "Senior", Age: 40, IsMale: true}
+	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10, IsEnrolled: true}
+	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20, IsEnrolled: false}
+	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20, IsEnrolled: true}
+	user_katie := User{FullName: "Katie", ClassYear: "Sophomore", Age: 30, IsEnrolled: false}
+	user_albert := User{FullName: "Albert", ClassYear: "Senior", Age: 40, IsEnrolled: true}
 
 	// insert dummy data into user table
 	db.Create(&user_nick)
@@ -1152,13 +1152,13 @@ func TestVideoDemo(t *testing.T) {
 	/* ------------------------------------------------------------ */
 
 	// demonstration of Find with filter conditions: FullName not in (Nick, Will),
-	// Age in (20, 30, 40), isMale = true
+	// Age in (20, 30, 40), IsEnrolled = true
 	results = []User{}
 
 	filter := make(Filter)
 	addFilter(filter, "FullName", "nin", []interface{}{"Nick", "Will"})
 	addFilter(filter, "Age", "in", []interface{}{20, 30, 40})
-	addFilter(filter, "isMale", "eq", true)
+	addFilter(filter, "IsEnrolled", "eq", true)
 
 	args = FindArgs{
 		andFilter: filter,
@@ -1246,12 +1246,12 @@ func TestVideoDemo(t *testing.T) {
 	/* ------------------------------------------------------------ */
 
 	// demonstration of Delete on rows where FullName in (Will, Katie, Albert), ClassYear = "Senior",
-	// and isMale = true
+	// and IsEnrolled = true
 
 	filter = make(Filter)
 	addFilter(filter, "FullName", "in", []interface{}{"Will", "Katie", "Albert"})
 	addFilter(filter, "ClassYear", "eq", "Sophomore")
-	addFilter(filter, "isMale", "eq", true)
+	addFilter(filter, "IsEnrolled", "eq", true)
 	delete_args := DeleteOrUpdateArgs{
 		andFilter: filter,
 	}
