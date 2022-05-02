@@ -1135,30 +1135,27 @@ func TestVideoDemo(t *testing.T) {
 
 	/* ------------------------------------------------------------ */
 
-	// demonstration of Find with one filter condition: Age <= 20
+	// demonstration of Find with projection on Age and ClassYear columns
 	results := []User{}
-
-	filter := make(Filter)
-	addFilter(filter, "Age", "leq", 20)
-
 	args := FindArgs{
-		andFilter: filter,
+		projection: []interface{}{"Age", "ClassYear"},
 	}
 	db.Find(&results, args)
-	// check that the returned Users are nick, shannon, and will
 	helperTestEquality(t, results, []User{
-		user_nick,
-		user_shannon,
-		user_will,
+		{ClassYear: "Freshman", Age: 10},
+		{ClassYear: "Freshman", Age: 20},
+		{ClassYear: "Senior", Age: 20},
+		{ClassYear: "Sophomore", Age: 30},
+		{ClassYear: "Senior", Age: 40},
 	})
 
 	/* ------------------------------------------------------------ */
 
-	// demonstration of Find with multiple filter conditions: FullName not in (Nick, Will),
+	// demonstration of Find with filter conditions: FullName not in (Nick, Will),
 	// Age in (20, 30, 40), isMale = true
 	results = []User{}
 
-	filter = make(Filter)
+	filter := make(Filter)
 	addFilter(filter, "FullName", "nin", []interface{}{"Nick", "Will"})
 	addFilter(filter, "Age", "in", []interface{}{20, 30, 40})
 	addFilter(filter, "isMale", "eq", true)
@@ -1174,6 +1171,24 @@ func TestVideoDemo(t *testing.T) {
 
 	/* ------------------------------------------------------------ */
 
+	results = []User{}
+	orderBy := new(OrderBy)
+	addOrder(orderBy, "ClassYear", "ASC")
+	addOrder(orderBy, "Age", "DESC")
+	args = FindArgs{
+		orderBy: *orderBy,
+	}
+	db.Find(&results, args)
+	helperTestEquality(t, results, []User{
+		user_shannon,
+		user_nick,
+		user_albert,
+		user_will,
+		user_katie,
+	})
+
+	/* ------------------------------------------------------------ */
+
 	// demonstration of Find with projection, filtering, ordering, and limit:
 	// Age >= 20, FullName not in (Katie)
 	// Order by FullName, descending
@@ -1181,7 +1196,7 @@ func TestVideoDemo(t *testing.T) {
 	// Limit to only 2 rows
 	results = []User{}
 
-	orderBy := new(OrderBy)
+	orderBy = new(OrderBy)
 	addOrder(orderBy, "FullName", "DESC")
 
 	filter = make(Filter)
