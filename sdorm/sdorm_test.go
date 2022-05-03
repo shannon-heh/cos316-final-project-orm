@@ -1257,7 +1257,7 @@ func TestVideoDemo6(t *testing.T) {
 	db := populateVideoDemoDb()
 	defer db.Close()
 
-	// demonstration of Update on rows where Age >= 18:
+	// demonstration of Update on rows where Age > 18:
 	// change ClassYear to "Sophomore" and Age to 21
 	filter := make(Filter)
 
