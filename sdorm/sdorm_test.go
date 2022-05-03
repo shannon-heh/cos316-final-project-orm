@@ -1102,7 +1102,20 @@ func TestInvalidTable(t *testing.T) {
 	})
 }
 
-func TestVideoDemo(t *testing.T) {
+/* ------------------------------------------------------------ */
+/* VIDEO DEMO FUNCTIONS                                         */
+/* ------------------------------------------------------------ */
+
+func showResult(results []User) {
+	fmt.Printf("\n%-10v | %-10v | %-5v | %-10v \n", "FullName", "ClassYear", "Age", "IsEnrolled")
+	fmt.Printf("--------------------------------------------\n")
+	for _, res := range results {
+		fmt.Printf("%-10v | %-10v | %-5d | %-10v\n", res.FullName, res.ClassYear, res.Age, res.IsEnrolled)
+	}
+	fmt.Println()
+}
+
+func populateVideoDemoDb() DB {
 	/*
 		// User model
 		type User struct {
@@ -1117,7 +1130,6 @@ func TestVideoDemo(t *testing.T) {
 	conn := connectSQL()
 	createUserTable(conn)
 	db := NewDB(conn)
-	defer db.Close()
 
 	// create dummy data with User model
 	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10, IsEnrolled: true}
@@ -1133,7 +1145,12 @@ func TestVideoDemo(t *testing.T) {
 	db.Create(&user_katie)
 	db.Create(&user_albert)
 
-	/* ------------------------------------------------------------ */
+	return db
+}
+
+func TestVideoDemo1(t *testing.T) {
+	db := populateVideoDemoDb()
+	defer db.Close()
 
 	// demonstration of Find with projection on Age and ClassYear columns
 	results := []User{}
@@ -1141,100 +1158,84 @@ func TestVideoDemo(t *testing.T) {
 		projection: []interface{}{"Age", "ClassYear"},
 	}
 	db.Find(&results, args)
-	helperTestEquality(t, results, []User{
-		{ClassYear: "Freshman", Age: 10},
-		{ClassYear: "Freshman", Age: 20},
-		{ClassYear: "Senior", Age: 20},
-		{ClassYear: "Sophomore", Age: 30},
-		{ClassYear: "Senior", Age: 40},
-	})
+	showResult(results)
+}
 
-	/* ------------------------------------------------------------ */
+func TestVideoDemo2(t *testing.T) {
+	db := populateVideoDemoDb()
+	defer db.Close()
 
 	// demonstration of Find with filter conditions: FullName not in (Nick, Will),
 	// Age in (20, 30, 40), IsEnrolled = true
-	results = []User{}
+	results := []User{}
 
 	filter := make(Filter)
 	addFilter(filter, "FullName", "nin", []interface{}{"Nick", "Will"})
 	addFilter(filter, "Age", "in", []interface{}{20, 30, 40})
 	addFilter(filter, "IsEnrolled", "eq", true)
 
-	args = FindArgs{
+	args := FindArgs{
 		andFilter: filter,
 	}
 	db.Find(&results, args)
 	// check that the returned User is albert
-	helperTestEquality(t, results, []User{
-		user_albert,
-	})
+	showResult(results)
+}
 
-	/* ------------------------------------------------------------ */
+func TestVideoDemo3(t *testing.T) {
+	db := populateVideoDemoDb()
+	defer db.Close()
 
 	// demonstration of Find with primary ordering of ClassYear ascending,
 	// and secondary ordering of Age descending
-	results = []User{}
+	// demonstration of Find with returned rows limit of 3
+	results := []User{}
 	orderBy := new(OrderBy)
 	addOrder(orderBy, "ClassYear", "ASC")
 	addOrder(orderBy, "Age", "DESC")
-	args = FindArgs{
+	args := FindArgs{
 		orderBy: *orderBy,
+		limit:   3,
 	}
 	db.Find(&results, args)
-	helperTestEquality(t, results, []User{
-		user_shannon,
-		user_nick,
-		user_albert,
-		user_will,
-		user_katie,
-	})
+	showResult(results)
+}
 
-	/* ------------------------------------------------------------ */
-
-	// demonstration of Find with returned rows limit of 2
-	results = []User{}
-	args = FindArgs{
-		limit: 2,
-	}
-	db.Find(&results, args)
-	helperTestEquality(t, results, []User{
-		user_nick,
-		user_shannon,
-	})
-
-	/* ------------------------------------------------------------ */
+func TestVideoDemo4(t *testing.T) {
+	db := populateVideoDemoDb()
+	defer db.Close()
 
 	// demonstration of Find with projection, filtering, ordering, and limit:
 	// Age >= 20, FullName not in (Katie)
 	// Order by FullName, descending
 	// Projection for FullName and ClassYear fields
 	// Limit to 2 returned rows
-	results = []User{}
+	results := []User{}
 
-	orderBy = new(OrderBy)
+	orderBy := new(OrderBy)
 	addOrder(orderBy, "FullName", "DESC")
 
-	filter = make(Filter)
+	filter := make(Filter)
 	addFilter(filter, "Age", "geq", 20)
 	addFilter(filter, "FullName", "nin", []interface{}{"Katie"})
 
-	args = FindArgs{
+	args := FindArgs{
 		projection: []interface{}{"FullName", "ClassYear"},
 		andFilter:  filter,
 		orderBy:    *orderBy,
 		limit:      2,
 	}
 	db.Find(&results, args)
-	helperTestEquality(t, results, []User{
-		{FullName: "Will", ClassYear: "Senior"},
-		{FullName: "Shannon", ClassYear: "Freshman"},
-	})
+	showResult(results)
+}
 
-	/* ------------------------------------------------------------ */
+func TestVideoDemo5(t *testing.T) {
+	db := populateVideoDemoDb()
+	defer db.Close()
 
 	// demonstration of Delete on rows where
 	// FullName in (Will, Katie, Albert), ClassYear = "Senior", and IsEnrolled = true
-	filter = make(Filter)
+	filter := make(Filter)
 	addFilter(filter, "FullName", "in", []interface{}{"Will", "Katie", "Albert"})
 	addFilter(filter, "ClassYear", "eq", "Senior")
 	addFilter(filter, "IsEnrolled", "eq", true)
@@ -1244,56 +1245,24 @@ func TestVideoDemo(t *testing.T) {
 	}
 
 	rows_deleted := db.Delete(&User{}, delete_args)
-	helperTestIntEquality(t, rows_deleted, 2)
+	fmt.Println("Rows Deleted:", rows_deleted) // should be 2
 
 	// check that rows were properly updated by fetching all rows using Find without a filter
-	results = []User{}
+	results := []User{}
 	db.Find(&results, FindArgs{})
-	helperTestEquality(t, results, []User{
-		user_nick,
-		user_shannon,
-		user_katie,
-	})
+	showResult(results)
 }
 
-func TestUpdateVideoDemo(t *testing.T) {
-	/*
-		// User model
-		type User struct {
-			FullName  string
-			Age       int
-			ClassYear string
-			IsEnrolled    bool
-		}
-	*/
-
-	// set up database connection
-	conn := connectSQL()
-	createUserTable(conn)
-	db := NewDB(conn)
+func TestVideoDemo6(t *testing.T) {
+	db := populateVideoDemoDb()
 	defer db.Close()
-
-	// create dummy data with User model
-	user_nick := User{FullName: "Nick", ClassYear: "Freshman", Age: 10, IsEnrolled: true}
-	user_shannon := User{FullName: "Shannon", ClassYear: "Freshman", Age: 20, IsEnrolled: false}
-	user_will := User{FullName: "Will", ClassYear: "Senior", Age: 20, IsEnrolled: true}
-	user_katie := User{FullName: "Katie", ClassYear: "Sophomore", Age: 30, IsEnrolled: false}
-	user_albert := User{FullName: "Albert", ClassYear: "Senior", Age: 40, IsEnrolled: true}
-
-	// insert dummy data into user table
-	db.Create(&user_nick)
-	db.Create(&user_shannon)
-	db.Create(&user_will)
-	db.Create(&user_katie)
-	db.Create(&user_albert)
-
-	/* ------------------------------------------------------------ */
 
 	// demonstration of Update on rows where Age >= 18:
 	// change ClassYear to "Sophomore" and Age to 21
 	filter := make(Filter)
 
 	addFilter(filter, "Age", "gt", 18)
+	addFilter(filter, "Age", "lt", 40)
 	update_args := DeleteOrUpdateArgs{
 		andFilter: filter,
 	}
@@ -1301,19 +1270,12 @@ func TestUpdateVideoDemo(t *testing.T) {
 	updates := make(Updates)
 	addUpdate(updates, "ClassYear", "Sophomore")
 	addUpdate(updates, "Age", 21)
-	addFilter(filter, "Age", "lt", 40)
 
 	rows_updated := db.Update(&User{}, update_args, updates)
-	helperTestIntEquality(t, rows_updated, 3)
+	fmt.Println("Rows Updated:", rows_updated) // should be 3
 
 	// check that rows were properly updated by fetching all rows using Find without a filter
 	results := []User{}
 	db.Find(&results, FindArgs{})
-	helperTestEquality(t, results, []User{
-		user_nick, // nick and albert are not updated
-		{FullName: "Shannon", ClassYear: "Sophomore", Age: 21},
-		{FullName: "Will", ClassYear: "Sophomore", Age: 21},
-		{FullName: "Katie", ClassYear: "Sophomore", Age: 21},
-		user_albert,
-	})
+	showResult(results)
 }
