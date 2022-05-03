@@ -1191,8 +1191,8 @@ func TestVideoDemo3(t *testing.T) {
 	// demonstration of Find with returned rows limit of 3
 	results := []User{}
 	orderBy := new(OrderBy)
-	addOrder(orderBy, "ClassYear", "ASC")
-	addOrder(orderBy, "Age", "DESC")
+	addOrder(orderBy, "Age", "ASC")
+	addOrder(orderBy, "FullName", "DESC")
 	args := FindArgs{
 		orderBy: *orderBy,
 		limit:   3,
